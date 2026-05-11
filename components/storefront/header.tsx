@@ -70,6 +70,7 @@ export function Header() {
             <Link
               href="/cart"
               aria-label={`Cart ${itemCount} item${itemCount !== 1 ? "s" : ""}`}
+              suppressHydrationWarning
               className="relative flex items-center gap-1.5"
             >
               <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">

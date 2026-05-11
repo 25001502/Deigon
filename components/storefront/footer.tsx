@@ -1,49 +1,55 @@
-import Link from "next/link";
+"use client";
 
-const footerLinks = [
-  { href: "/collections/foxygeon-collections", label: "Collections" },
-  { href: "/cart", label: "Cart" },
-  { href: "/checkout", label: "Checkout demo" },
-];
+import Link from "next/link";
 
 export function Footer() {
   return (
-    <footer className="border-t border-ink/10 bg-paper/80">
-      <div className="mx-auto grid max-w-7xl gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[1fr_0.8fr] lg:px-8">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-clay">
-            Deigon prototype
-          </p>
-          <h2 className="mt-4 font-display text-4xl text-ink">
-            A cleaner storefront now, real ecommerce wiring after approval.
-          </h2>
-        </div>
+    <>
+      {/* Email subscribe section */}
+      <section className="border-t border-gray-200 bg-white py-14 text-center">
+        <h2 className="text-2xl font-bold text-gray-900">Subscribe to our emails</h2>
+        <p className="mt-2 text-sm text-gray-600">
+          Be the first to know about new collections and exclusive offers.
+        </p>
+        <form
+          className="mx-auto mt-6 flex max-w-sm items-center gap-2 px-4"
+          onSubmit={(e) => e.preventDefault()}
+        >
+          <input
+            type="email"
+            placeholder="Email"
+            aria-label="Email address"
+            className="flex-1 rounded-full border border-gray-300 px-4 py-2.5 text-sm text-gray-900 outline-none placeholder:text-gray-400 focus:border-gray-600 focus:ring-1 focus:ring-gray-600"
+          />
+          <button
+            type="submit"
+            className="rounded-full bg-black px-5 py-2.5 text-sm font-medium text-white transition hover:bg-gray-800"
+          >
+            Subscribe
+          </button>
+        </form>
+      </section>
 
-        <div className="grid gap-8 sm:grid-cols-2">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-ink/45">
-              Explore
-            </p>
-            <div className="mt-4 flex flex-col gap-3">
-              {footerLinks.map((link) => (
-                <Link key={link.href} href={link.href} className="text-sm text-ink/72 transition hover:text-ink">
-                  {link.label}
-                </Link>
-              ))}
+      {/* Footer */}
+      <footer className="border-t border-gray-200 bg-white py-8">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-col items-center gap-3 text-xs text-gray-500 sm:flex-row sm:justify-between">
+            <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+              <span>© 2026, Deigon</span>
+              <span aria-hidden>·</span>
+              <Link href="#" className="hover:text-gray-900 transition">
+                Powered by Deigon Commerce
+              </Link>
             </div>
-          </div>
-
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-ink/45">
-              Demo note
-            </p>
-            <p className="mt-4 text-sm leading-7 text-ink/72">
-              The current prototype keeps the storefront believable while leaving payments,
-              fulfillment, and admin tools for the production phase.
-            </p>
+            <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1">
+              <Link href="#" className="hover:text-gray-900 transition">Privacy policy</Link>
+              <Link href="#" className="hover:text-gray-900 transition">Refund policy</Link>
+              <Link href="#" className="hover:text-gray-900 transition">Shipping policy</Link>
+              <Link href="#" className="hover:text-gray-900 transition">Terms of service</Link>
+            </nav>
           </div>
         </div>
-      </div>
-    </footer>
+      </footer>
+    </>
   );
 }

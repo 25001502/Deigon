@@ -20,10 +20,7 @@
 }
 
 html {
-	background:
-		radial-gradient(circle at top left, rgba(182, 91, 54, 0.14), transparent 24%),
-		radial-gradient(circle at 85% 5%, rgba(38, 71, 54, 0.1), transparent 22%),
-		#f2ede4;
+	background: #ffffff;
 }
 
 body {
@@ -31,6 +28,10 @@ body {
 	min-height: 100vh;
 	background: transparent;
 	color: #17231d;
+}
+
+.min-h-hero {
+	min-height: 520px;
 }
 
 a {

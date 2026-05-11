@@ -20,8 +20,8 @@ export type Collection = {
 };
 
 export const announcements = [
-  "Free delivery on orders over R600",
-  "Demo storefront: checkout will be wired to Yoco in production",
+  "Free Delivery On Orders Over R600",
+  "Delivery In 5 to 10 Business Days",
 ];
 
 export const siteContent = {
@@ -141,7 +141,7 @@ export const products: Product[] = [
     vendor: "FOXYGEON",
     price: 380,
     badge: "Color-led piece",
-    collectionHandle: "weekend-rotation",
+    collectionHandle: "foxygeon-collections",
     shortDescription: "A brighter entry in the lineup for summer-oriented styling.",
     description:
       "Grouped into a lighter discovery edit so the catalog feels navigable rather than random.",
@@ -153,7 +153,7 @@ export const products: Product[] = [
     vendor: "FOXYGEON",
     price: 250,
     badge: "Everyday pickup",
-    collectionHandle: "weekend-rotation",
+    collectionHandle: "foxygeon-collections",
     shortDescription: "A simpler piece framed as an easy add-on purchase.",
     description:
       "The copy, price block, and category context are tightened so the product has a clear role in the catalog.",
@@ -165,7 +165,7 @@ export const products: Product[] = [
     vendor: "FOXYGEON",
     price: 150,
     badge: "Impulse buy",
-    collectionHandle: "weekend-rotation",
+    collectionHandle: "foxygeon-collections",
     shortDescription: "A playful, lower-ticket item surfaced in a more deliberate way.",
     description:
       "Positioned as an easy discovery product instead of getting lost in a dense slider.",
@@ -175,6 +175,10 @@ export const products: Product[] = [
 
 export function getFeaturedProducts() {
   return products.filter((product) => product.featured);
+}
+
+export function getFoxygetonCollectionProducts() {
+  return products.filter((product) => !product.featured && product.collectionHandle === "foxygeon-collections");
 }
 
 export function getProductByHandle(handle: string) {

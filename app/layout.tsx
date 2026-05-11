@@ -30,7 +30,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body
-        className={`${spaceGrotesk.variable} ${cormorant.variable} bg-sand text-ink antialiased`}
+        className={`${spaceGrotesk.variable} ${cormorant.variable} bg-white text-gray-900 antialiased`}
       >
         <CartProvider>
           <div className="relative min-h-screen overflow-hidden">

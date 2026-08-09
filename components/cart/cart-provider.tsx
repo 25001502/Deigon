@@ -19,7 +19,10 @@ type CartContextValue = {
   items: CartLine[];
   itemCount: number;
   subtotal: number;
-  addItem: (product: Pick<Product, "badge" | "handle" | "price" | "themeClass" | "title" | "vendor">) => void;
+  addItem: (
+    product: Pick<Product, "badge" | "handle" | "price" | "themeClass" | "title" | "vendor">,
+    quantity?: number,
+  ) => void;
   removeItem: (handle: string) => void;
   setQuantity: (handle: string, quantity: number) => void;
   clearCart: () => void;
@@ -63,17 +66,17 @@ export function CartProvider({ children }: { children: ReactNode }) {
       items,
       itemCount,
       subtotal,
-      addItem: (product) => {
+      addItem: (product, quantity = 1) => {
         setItems((currentItems) => {
           const existing = currentItems.find((item) => item.handle === product.handle);
 
           if (!existing) {
-            return [...currentItems, { ...product, quantity: 1 }];
+            return [...currentItems, { ...product, quantity }];
           }
 
           return currentItems.map((item) =>
             item.handle === product.handle
-              ? { ...item, quantity: item.quantity + 1 }
+              ? { ...item, quantity: item.quantity + quantity }
               : item,
           );
         });

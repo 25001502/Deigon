@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -34,13 +35,26 @@ export default async function ProductPage({ params }: ProductPageProps) {
     <main className="bg-[#f5f5f7] px-4 py-10 sm:px-6 lg:min-h-[calc(100vh-8rem)] lg:px-8 lg:py-14">
       <section className="mx-auto grid max-w-6xl gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(21rem,0.9fr)] lg:gap-16">
         <div className="min-w-0 lg:sticky lg:top-28 lg:self-start">
-          <MockProductMedia
-            title={product.title}
-            vendor={product.vendor}
-            badge={product.badge}
-            themeClass={product.themeClass}
-            className="aspect-square min-h-0 rounded-lg p-7 sm:p-9"
-          />
+          {product.image ? (
+            <div className="relative aspect-square overflow-hidden rounded-lg">
+              <Image
+                src={product.image}
+                alt={product.title}
+                fill
+                priority
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <MockProductMedia
+              title={product.title}
+              vendor={product.vendor}
+              badge={product.badge}
+              themeClass={product.themeClass}
+              className="aspect-square min-h-0 rounded-lg p-7 sm:p-9"
+            />
+          )}
         </div>
 
         <div className="max-w-xl pt-1 lg:pt-2">

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import type { Product } from "@/lib/data/catalog";
@@ -9,13 +10,25 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <article className="group overflow-hidden rounded-[1.8rem] border border-ink/10 bg-paper shadow-[0_18px_60px_rgba(15,26,22,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(15,26,22,0.1)]">
       <Link href={`/products/${product.handle}`} className="block p-4">
-        <MockProductMedia
-          title={product.title}
-          vendor={product.vendor}
-          badge={product.badge}
-          themeClass={product.themeClass}
-          className="min-h-70"
-        />
+        {product.image ? (
+          <div className="relative min-h-70 overflow-hidden rounded-4xl border border-white/20">
+            <Image
+              src={product.image}
+              alt={product.title}
+              fill
+              sizes="(min-width: 768px) 33vw, 100vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          </div>
+        ) : (
+          <MockProductMedia
+            title={product.title}
+            vendor={product.vendor}
+            badge={product.badge}
+            themeClass={product.themeClass}
+            className="min-h-70"
+          />
+        )}
       </Link>
 
       <div className="space-y-4 px-5 pb-5">

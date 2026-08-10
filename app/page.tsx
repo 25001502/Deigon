@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 
 import { getFeaturedProducts, getFoxygetonCollectionProducts } from "@/lib/data/catalog";
@@ -11,9 +12,21 @@ function ShopProductCard({ product }: { product: Product }) {
   return (
     <div className="group">
       <Link href={`/products/${product.handle}`} className="block overflow-hidden rounded-lg bg-gray-100">
-        <div
-          className={`aspect-3/4 w-full ${product.themeClass} transition-transform duration-300 group-hover:scale-105`}
-        />
+        <div className="relative aspect-3/4 w-full overflow-hidden">
+          {product.image ? (
+            <Image
+              src={product.image}
+              alt={product.title}
+              fill
+              sizes="(min-width: 1280px) 288px, (min-width: 640px) 25vw, 50vw"
+              className="object-cover transition-transform duration-300 group-hover:scale-105"
+            />
+          ) : (
+            <div
+              className={`h-full w-full ${product.themeClass} transition-transform duration-300 group-hover:scale-105`}
+            />
+          )}
+        </div>
       </Link>
       <div className="mt-3">
         <h3 className="text-sm font-semibold text-gray-900">
@@ -62,7 +75,7 @@ export default function Home() {
       {/* Featured products */}
       <section className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <h2 className="text-2xl font-bold text-gray-900">Featured products</h2>
-        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-4">
+        <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-4 border-t border-gray-200 pt-10">
           {featuredProducts.map((product) => (
             <ShopProductCard key={product.handle} product={product} />
           ))}

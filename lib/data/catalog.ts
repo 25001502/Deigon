@@ -8,6 +8,7 @@ export type Product = {
   shortDescription: string;
   description: string;
   themeClass: string;
+  image?: string;
   featured?: boolean;
 };
 
@@ -82,6 +83,7 @@ export const products: Product[] = [
     description:
       "A bold amber profile designed for close spaces, cooler evenings, and the kind of confidence that does not need to shout.",
     themeClass: "theme-after-hours",
+    image: "https://hvawfylsdaormrkghbbw.supabase.co/storage/v1/object/sign/products/AfterHours.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8wNWZkNjhlOS00ODJhLTQ1NGYtODZmYS1mMmNlOWNjY2NhZjMiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0cy9BZnRlckhvdXJzLmpwZyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODYzODU3MDAsImV4cCI6MTgxNzkyMTcwMH0.lHxqLApJKuntdPBYSV4JTKN1403bW7laJ1HEJJctuvQ",
     featured: true,
   },
   {
@@ -95,6 +97,7 @@ export const products: Product[] = [
     description:
       "The lighter counterpart in the fragrance range, positioned as a fresh, bright pickup for daily wear.",
     themeClass: "theme-azure-chill",
+    image: "https://hvawfylsdaormrkghbbw.supabase.co/storage/v1/object/sign/products/AzureChill.jpg?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8wNWZkNjhlOS00ODJhLTQ1NGYtODZmYS1mMmNlOWNjY2NhZjMiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0cy9BenVyZUNoaWxsLmpwZyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODYzODcxOTgsImV4cCI6MTgxNzkyMzE5OH0.stBt4sDznOW2lYx07IUZoHDqSfHi-t-qju_ddHr1wio",
     featured: true,
   },
   {

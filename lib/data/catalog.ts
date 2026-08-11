@@ -148,6 +148,7 @@ export const products: Product[] = [
     shortDescription: "A brighter entry in the lineup for summer-oriented styling.",
     description:
       "Grouped into a lighter discovery edit so the catalog feels navigable rather than random.",
+    image: "https://hvawfylsdaormrkghbbw.supabase.co/storage/v1/object/sign/products/TropicalTribe.JPG?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8wNWZkNjhlOS00ODJhLTQ1NGYtODZmYS1mMmNlOWNjY2NhZjMiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0cy9Ucm9waWNhbFRyaWJlLkpQRyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODY0NzM0MDQsImV4cCI6MTgxODAwOTQwNH0.dA3c16Tq9GNFdpl-guJnq0Z7lXidKLt53tStj806NTc",
     themeClass: "theme-tropical-tribe",
   },
   {

@@ -8,7 +8,7 @@ import { MockProductMedia } from "./mock-product-media";
 
 export function ProductCard({ product }: { product: Product }) {
   return (
-    <article className="group overflow-hidden rounded-[1.8rem] border border-ink/10 bg-paper shadow-[0_18px_60px_rgba(15,26,22,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(15,26,22,0.1)]">
+    <article className="group overflow-hidden rounded-4xl  border border-black bg-transparent shadow-[0_18px_60px_rgba(15,26,22,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(15,26,22,0.1)]">
       <Link href={`/products/${product.handle}`} className="block p-4">
         {product.image ? (
           <div className="relative min-h-70 overflow-hidden rounded-4xl border border-white/20">
@@ -31,10 +31,10 @@ export function ProductCard({ product }: { product: Product }) {
         )}
       </Link>
 
-      <div className="space-y-4 px-5 pb-5">
+      <div className="space-y-4 px-5 pb-5 bg-transparent">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-clay">{product.vendor}</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black">{product.vendor}</p>
             <Link href={`/products/${product.handle}`} className="mt-2 block text-2xl font-semibold text-ink">
               {product.title}
             </Link>

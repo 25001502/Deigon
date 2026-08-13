@@ -7,7 +7,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import type { Product } from "@/lib/data/catalog";
 
 type ProductPurchasePanelProps = {
-  product: Pick<Product, "badge" | "handle" | "price" | "themeClass" | "title" | "vendor">;
+  product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor">;
 };
 
 export function ProductPurchasePanel({ product }: ProductPurchasePanelProps) {

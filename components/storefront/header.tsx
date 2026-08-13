@@ -4,11 +4,21 @@ import Link from "next/link";
 import { useState } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
-import { announcements } from "@/lib/data/catalog";
+import { announcements, collections } from "@/lib/data/catalog";
+
+const navLinks = [
+  { href: "/", label: "Home" },
+  { href: "/collections", label: "Collections" },
+  ...collections
+    .filter((collection) => collection.handle !== "all")
+    .map((collection) => ({ href: `/collections/${collection.handle}`, label: collection.title })),
+  { href: "/collections/all", label: "All Products" },
+];
 
 export function Header() {
   const { itemCount } = useCart();
   const [announcementIndex, setAnnouncementIndex] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   const prev = () => setAnnouncementIndex((i) => (i - 1 + announcements.length) % announcements.length);
   const next = () => setAnnouncementIndex((i) => (i + 1) % announcements.length);
@@ -39,15 +49,15 @@ export function Header() {
         <div className="relative flex items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           {/* Left: hamburger + search */}
           <div className="flex items-center gap-5 text-white">
-            <button aria-label="Menu" className="flex flex-col gap-1.25">
+            <button
+              onClick={() => setMenuOpen((open) => !open)}
+              aria-label="Menu"
+              aria-expanded={menuOpen}
+              className="flex flex-col gap-1.25"
+            >
               <span className="block h-[1.5px] w-6 bg-white" />
               <span className="block h-[1.5px] w-6 bg-white" />
               <span className="block h-[1.5px] w-6 bg-white" />
-            </button>
-            <button aria-label="Search" className="text-white">
-              <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
             </button>
           </div>
 
@@ -61,7 +71,7 @@ export function Header() {
 
           {/* Right: account + cart */}
           <div className="flex items-center gap-5 text-white">
-            <Link href="#" aria-label="Log in" className="flex items-center gap-1.5 text-sm text-white">
+            <Link href="/account" aria-label="Log in" className="flex items-center gap-1.5 text-sm text-white">
               <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.5} viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
               </svg>
@@ -86,6 +96,24 @@ export function Header() {
             </Link>
           </div>
         </div>
+
+        {menuOpen ? (
+          <nav className="border-t border-white/10 bg-black px-4 py-4 sm:px-6 lg:px-8">
+            <ul className="mx-auto flex max-w-7xl flex-col gap-1">
+              {navLinks.map((link) => (
+                <li key={link.href}>
+                  <Link
+                    href={link.href}
+                    onClick={() => setMenuOpen(false)}
+                    className="block rounded-md px-2 py-2 text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+                  >
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ) : null}
       </header>
     </div>
   );

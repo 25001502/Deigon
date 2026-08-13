@@ -18,8 +18,12 @@ const cormorant = Cormorant_Garamond({
 });
 
 export const metadata: Metadata = {
-  title: "Deigon Demo Storefront",
-  description: "A storefront prototype for a refined Deigon shopping experience.",
+  title: {
+    default: "Deigon",
+    template: "%s | Deigon",
+  },
+  description:
+    "Deigon — modern streetwear and signature fragrances. Shop FOXYGEON Collections, Patron Fragrance, and Extroo Football Club.",
 };
 
 export default function RootLayout({

@@ -9,6 +9,7 @@ import {
   getCollectionByHandle,
   getProductByHandle,
   getProductsByCollection,
+  storeInfo,
 } from "@/lib/data/catalog";
 import { formatRand } from "@/lib/money";
 
@@ -30,6 +31,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const relatedProducts = getProductsByCollection(product.collectionHandle)
     .filter((item) => item.handle !== product.handle)
     .slice(0, 3);
+  const gallery = product.images && product.images.length > 0 ? product.images : product.image ? [product.image] : [];
 
   return (
     <main className="bg-[#f5f5f7] px-4 py-10 sm:px-6 lg:min-h-[calc(100vh-8rem)] lg:px-8 lg:py-14">
@@ -55,6 +57,16 @@ export default async function ProductPage({ params }: ProductPageProps) {
               className="aspect-square min-h-0 rounded-lg p-7 sm:p-9"
             />
           )}
+
+          {gallery.length > 1 ? (
+            <div className="mt-4 grid grid-cols-4 gap-3">
+              {gallery.map((src) => (
+                <div key={src} className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
+                  <Image src={src} alt={product.title} fill sizes="120px" className="object-cover" />
+                </div>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="max-w-xl pt-1 lg:pt-2">
@@ -68,7 +80,9 @@ export default async function ProductPage({ params }: ProductPageProps) {
             )}
             <h1 className="mt-6 text-4xl font-bold tracking-normal text-black sm:text-5xl">{product.title}</h1>
             <p className="mt-6 text-xl font-medium text-neutral-900">{formatRand(product.price)}</p>
-            <p className="mt-3 text-sm text-neutral-600"><span className="underline">Shipping</span> calculated at checkout.</p>
+            <p className="mt-3 text-sm text-neutral-600">
+              <Link href="/policies/shipping-policy" className="underline">Shipping</Link> calculated at checkout.
+            </p>
           </div>
 
           <div className="mt-7">
@@ -77,8 +91,22 @@ export default async function ProductPage({ params }: ProductPageProps) {
 
           <div className="mt-9 border-t border-neutral-300 pt-6 text-sm leading-7 text-neutral-600">
             <p>{product.shortDescription}</p>
-            <p className="mt-3">{product.description}</p>
-            <p className="mt-6 flex items-center gap-2 text-neutral-700"><span className="text-base text-emerald-600">&#10003;</span> Pickup available at Univen main gate</p>
+            <p className="mt-3 whitespace-pre-line">{product.description}</p>
+
+            {product.details && product.details.length > 0 ? (
+              <ul className="mt-4 space-y-1.5">
+                {product.details.map((detail) => (
+                  <li key={detail} className="flex gap-2">
+                    <span aria-hidden>•</span>
+                    <span>{detail}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+
+            <p className="mt-6 flex items-center gap-2 text-neutral-700">
+              <span className="text-base text-emerald-600">&#10003;</span> Pickup available at {storeInfo.pickupLocation}
+            </p>
             <p className="ml-6 mt-1 text-xs">Usually ready in 24 hours</p>
             <Link href="/" className="ml-6 mt-3 inline-block underline underline-offset-2 hover:text-black">View store information</Link>
           </div>
@@ -86,23 +114,20 @@ export default async function ProductPage({ params }: ProductPageProps) {
       </section>
 
       {relatedProducts.length > 0 ? (
-        <section className="mt-16">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-clay">Related picks</p>
-              <h2 className="mt-3 font-display text-5xl text-ink">Keep the story moving.</h2>
-            </div>
+        <section className="mx-auto mt-16 max-w-6xl">
+          <div className="flex items-end justify-between gap-4 border-t border-neutral-300 pt-8">
+            <h2 className="text-2xl font-bold text-black">You may also like</h2>
             {collection ? (
               <Link
                 href={`/collections/${collection.handle}`}
-                className="hidden text-sm font-semibold uppercase tracking-[0.22em] text-ink/60 transition hover:text-ink sm:inline"
+                className="hidden text-sm font-medium text-neutral-600 transition hover:text-black sm:inline"
               >
-                Back to collection
+                Back to {collection.title}
               </Link>
             ) : null}
           </div>
 
-          <div className="mt-10 grid gap-6 md:grid-cols-3">
+          <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3">
             {relatedProducts.map((relatedProduct) => (
               <ProductCard key={relatedProduct.handle} product={relatedProduct} />
             ))}

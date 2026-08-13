@@ -8,41 +8,47 @@ import { MockProductMedia } from "./mock-product-media";
 
 export function ProductCard({ product }: { product: Product }) {
   return (
-    <article className="group overflow-hidden rounded-4xl  border border-black bg-transparent shadow-[0_18px_60px_rgba(15,26,22,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(15,26,22,0.1)]">
-      <Link href={`/products/${product.handle}`} className="block p-4">
-        {product.image ? (
-          <div className="relative min-h-70 overflow-hidden rounded-4xl border border-white/20">
+    <article className="group">
+      <Link href={`/products/${product.handle}`} className="relative block overflow-hidden rounded-lg bg-gray-100">
+        <div className="relative aspect-3/4 w-full overflow-hidden">
+          {product.image ? (
             <Image
               src={product.image}
               alt={product.title}
               fill
-              sizes="(min-width: 768px) 33vw, 100vw"
+              sizes="(min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
               className="object-cover transition-transform duration-300 group-hover:scale-105"
             />
-          </div>
-        ) : (
-          <MockProductMedia
-            title={product.title}
-            vendor={product.vendor}
-            badge={product.badge}
-            themeClass={product.themeClass}
-            className="min-h-70"
-          />
-        )}
+          ) : (
+            <MockProductMedia
+              title={product.title}
+              vendor={product.vendor}
+              badge={product.badge}
+              themeClass={product.themeClass}
+              className="h-full min-h-0 rounded-none border-none p-5"
+            />
+          )}
+        </div>
+        {product.badge ? (
+          <span className="absolute left-3 top-3 rounded-full bg-white/95 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-gray-900 shadow-sm">
+            {product.badge}
+          </span>
+        ) : null}
       </Link>
 
-      <div className="space-y-4 px-5 pb-5 bg-transparent">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-black">{product.vendor}</p>
-            <Link href={`/products/${product.handle}`} className="mt-2 block text-2xl font-semibold text-ink">
-              {product.title}
-            </Link>
-          </div>
-          <span className="text-sm font-semibold text-ink">{formatRand(product.price)}</span>
-        </div>
-
-        <p className="text-sm leading-7 text-ink/68">{product.shortDescription}</p>
+      <div className="mt-3">
+        <h3 className="text-sm font-semibold text-gray-900">
+          <Link href={`/products/${product.handle}`} className="hover:underline">
+            {product.title}
+          </Link>
+        </h3>
+        <p className="mt-0.5 text-xs text-gray-500">
+          <span className="font-medium">Vendor:</span> {product.vendor}
+        </p>
+        <p className="mt-1 text-sm text-gray-900">
+          <span className="text-xs font-normal text-gray-500">Regular price </span>
+          {formatRand(product.price)}
+        </p>
       </div>
     </article>
   );

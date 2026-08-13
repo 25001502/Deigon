@@ -1,62 +1,17 @@
-import Image from "next/image";
 import Link from "next/link";
 
 import { getFeaturedProducts, getFoxygetonCollectionProducts } from "@/lib/data/catalog";
-import { formatRand } from "@/lib/money";
-import type { Product } from "@/lib/data/catalog";
+import { ProductCard } from "@/components/storefront/product-card";
 
 const featuredProducts = getFeaturedProducts();
 const foxygeonProducts = getFoxygetonCollectionProducts();
 
-function ShopProductCard({ product }: { product: Product }) {
-  return (
-    <div className="group">
-      <Link href={`/products/${product.handle}`} className="block overflow-hidden rounded-lg bg-gray-100">
-        <div className="relative aspect-3/4 w-full overflow-hidden">
-          {product.image ? (
-            <Image
-              src={product.image}
-              alt={product.title}
-              fill
-              sizes="(min-width: 1280px) 288px, (min-width: 640px) 25vw, 50vw"
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-            />
-          ) : (
-            <div
-              className={`h-full w-full ${product.themeClass} transition-transform duration-300 group-hover:scale-105`}
-            />
-          )}
-        </div>
-      </Link>
-      <div className="mt-3">
-        <h3 className="text-sm font-semibold text-gray-900">
-          <Link href={`/products/${product.handle}`} className="hover:underline">
-            {product.title}
-          </Link>
-        </h3>
-        <p className="mt-0.5 text-xs text-gray-500">
-          <span className="font-medium">Vendor:</span> {product.vendor}
-        </p>
-        <p className="mt-1 text-sm text-gray-900">
-          <span className="text-xs font-normal text-gray-500">Regular price </span>
-          {formatRand(product.price)}
-        </p>
-      </div>
-    </div>
-  );
-}
-
 export default function Home() {
   return (
     <main>
-      {/* Hero slideshow */}
+      {/* Hero */}
       <section className="relative w-full min-h-hero overflow-hidden">
-        {/* Simulated brand photo background */}
-        <div className="absolute inset-0 flex items-center justify-center bg-linear-to-br from-gray-500 via-gray-400 to-gray-300">
-          <span className="select-none text-xs font-semibold uppercase tracking-[0.3em] text-white/40">
-            Brand Photography
-          </span>
-        </div>
+        <div className="absolute inset-0 bg-linear-to-br from-neutral-800 via-neutral-700 to-neutral-500" />
 
         {/* Overlay card — bottom left, matching live store */}
         <div className="absolute bottom-8 left-6 z-10 max-w-70 rounded-xl bg-white/95 p-6 shadow-lg backdrop-blur-sm sm:left-12 sm:max-w-xs">
@@ -77,7 +32,7 @@ export default function Home() {
         <h2 className="text-2xl font-bold text-gray-900">Featured products</h2>
         <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-4 border-t border-gray-200 pt-10">
           {featuredProducts.map((product) => (
-            <ShopProductCard key={product.handle} product={product} />
+            <ProductCard key={product.handle} product={product} />
           ))}
         </div>
       </section>
@@ -89,7 +44,7 @@ export default function Home() {
         </div>
         <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-4">
           {foxygeonProducts.map((product) => (
-            <ShopProductCard key={product.handle} product={product} />
+            <ProductCard key={product.handle} product={product} />
           ))}
         </div>
         <div className="mt-8 text-center">
@@ -120,3 +75,4 @@ export default function Home() {
     </main>
   );
 }
+

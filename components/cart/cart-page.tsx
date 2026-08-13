@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 
 import { useCart } from "@/components/cart/cart-provider";
@@ -12,74 +13,69 @@ export function CartPage() {
   if (items.length === 0) {
     return (
       <main className="mx-auto flex min-h-[60vh] max-w-5xl flex-col items-center justify-center px-4 py-20 text-center sm:px-6 lg:px-8">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-clay">Cart preview</p>
-        <h1 className="mt-5 font-display text-6xl leading-none text-ink sm:text-7xl">No products yet.</h1>
-        <p className="mt-6 max-w-2xl text-base leading-8 text-ink/72">
-          This page becomes far more convincing once you add a product from the collection or product-detail route.
+        <h1 className="text-3xl font-bold text-gray-900 sm:text-4xl">Your cart is empty.</h1>
+        <p className="mt-4 max-w-md text-sm leading-7 text-gray-600">
+          Browse the collections and add something to your bag.
         </p>
         <Link
           href="/collections/foxygeon-collections"
-          className="mt-10 inline-flex items-center justify-center rounded-full bg-ink px-7 py-4 text-sm font-semibold uppercase tracking-[0.22em] text-sand transition hover:bg-forest"
+          className="mt-8 inline-flex items-center justify-center rounded-full bg-black px-7 py-3.5 text-sm font-medium text-white transition hover:bg-neutral-800"
         >
-          Browse products
+          Continue shopping
         </Link>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-clay">Cart preview</p>
-          <h1 className="mt-4 font-display text-6xl leading-none text-ink sm:text-7xl">
-            {itemCount} item{itemCount === 1 ? "" : "s"} ready.
-          </h1>
-        </div>
-        <Link
-          href="/checkout"
-          className="inline-flex items-center justify-center rounded-full border border-ink/12 px-6 py-3 text-sm font-semibold uppercase tracking-[0.22em] text-ink transition hover:border-clay hover:text-clay"
-        >
-          Continue to checkout demo
-        </Link>
-      </div>
+    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
+      <h1 className="text-2xl font-bold text-gray-900">
+        Your cart ({itemCount} item{itemCount === 1 ? "" : "s"})
+      </h1>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="space-y-5">
+      <div className="mt-8 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
+        <section className="divide-y divide-gray-200 border-y border-gray-200">
           {items.map((item) => (
-            <article
-              key={item.handle}
-              className="grid gap-5 rounded-[2rem] border border-ink/10 bg-paper p-5 shadow-[0_18px_60px_rgba(15,26,22,0.06)] sm:grid-cols-[220px_1fr]"
-            >
-              <MockProductMedia
-                title={item.title}
-                vendor={item.vendor}
-                badge={item.badge}
-                themeClass={item.themeClass}
-                className="min-h-60"
-              />
+            <article key={item.handle} className="grid grid-cols-[96px_1fr] gap-4 py-5 sm:grid-cols-[120px_1fr]">
+              <Link href={`/products/${item.handle}`} className="relative aspect-square overflow-hidden rounded-lg bg-gray-100">
+                {item.image ? (
+                  <Image src={item.image} alt={item.title} fill sizes="120px" className="object-cover" />
+                ) : (
+                  <MockProductMedia
+                    title={item.title}
+                    vendor={item.vendor}
+                    badge={item.badge}
+                    themeClass={item.themeClass}
+                    className="h-full min-h-0 rounded-lg p-3"
+                  />
+                )}
+              </Link>
 
-              <div className="flex flex-col justify-between gap-5">
+              <div className="flex flex-col justify-between">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-[0.25em] text-clay">{item.vendor}</p>
-                  <h2 className="mt-3 text-3xl font-semibold text-ink">{item.title}</h2>
-                  <p className="mt-3 text-sm leading-7 text-ink/70">{formatRand(item.price)} each</p>
+                  <p className="text-xs text-gray-500">{item.vendor}</p>
+                  <Link href={`/products/${item.handle}`} className="mt-1 block text-base font-semibold text-gray-900 hover:underline">
+                    {item.title}
+                  </Link>
+                  <p className="mt-1 text-sm text-gray-600">{formatRand(item.price)} each</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="inline-flex items-center rounded-full border border-ink/10 bg-sand/70 p-1">
+                  <div className="inline-flex items-center rounded-full border border-gray-300">
                     <button
                       type="button"
+                      aria-label={`Decrease quantity for ${item.title}`}
                       onClick={() => setQuantity(item.handle, item.quantity - 1)}
-                      className="h-10 w-10 rounded-full text-lg text-ink transition hover:bg-paper"
+                      className="h-9 w-9 text-lg text-gray-600 transition hover:text-black"
                     >
                       -
                     </button>
-                    <span className="min-w-12 text-center text-sm font-semibold text-ink">{item.quantity}</span>
+                    <span className="min-w-9 text-center text-sm font-medium text-gray-900">{item.quantity}</span>
                     <button
                       type="button"
+                      aria-label={`Increase quantity for ${item.title}`}
                       onClick={() => setQuantity(item.handle, item.quantity + 1)}
-                      className="h-10 w-10 rounded-full text-lg text-ink transition hover:bg-paper"
+                      className="h-9 w-9 text-lg text-gray-600 transition hover:text-black"
                     >
                       +
                     </button>
@@ -88,7 +84,7 @@ export function CartPage() {
                   <button
                     type="button"
                     onClick={() => removeItem(item.handle)}
-                    className="rounded-full border border-ink/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.22em] text-ink/64 transition hover:border-clay hover:text-clay"
+                    className="text-xs font-medium uppercase tracking-wide text-gray-500 underline-offset-2 transition hover:text-black hover:underline"
                   >
                     Remove
                   </button>
@@ -98,30 +94,30 @@ export function CartPage() {
           ))}
         </section>
 
-        <aside className="rounded-[2rem] border border-ink/10 bg-ink px-6 py-7 text-sand shadow-[0_24px_90px_rgba(15,26,22,0.14)] sm:px-7">
-          <p className="text-xs font-semibold uppercase tracking-[0.25em] text-sand/60">Order summary</p>
-          <div className="mt-6 space-y-4 border-b border-sand/12 pb-6 text-sm text-sand/74">
+        <aside className="h-fit rounded-lg border border-gray-200 p-6">
+          <p className="text-sm font-semibold uppercase tracking-wide text-gray-500">Order summary</p>
+          <div className="mt-4 space-y-3 border-b border-gray-200 pb-4 text-sm text-gray-600">
             <div className="flex items-center justify-between">
               <span>Subtotal</span>
               <span>{formatRand(subtotal)}</span>
             </div>
             <div className="flex items-center justify-between">
               <span>Shipping</span>
-              <span>Calculated in production</span>
+              <span>Calculated at checkout</span>
             </div>
           </div>
-          <div className="mt-6 flex items-center justify-between text-lg font-semibold">
+          <div className="mt-4 flex items-center justify-between text-lg font-semibold text-gray-900">
             <span>Total</span>
             <span>{formatRand(subtotal)}</span>
           </div>
-          <p className="mt-6 text-sm leading-7 text-sand/72">
-            In production this panel will confirm shipping rules, pickup availability, and the real Yoco payment handoff.
+          <p className="mt-4 text-xs leading-6 text-gray-500">
+            Free delivery on orders over R600. Pickup available at Univen main gate, usually ready in 24 hours.
           </p>
           <Link
             href="/checkout"
-            className="mt-8 inline-flex w-full items-center justify-center rounded-full bg-sand px-6 py-4 text-sm font-semibold uppercase tracking-[0.22em] text-ink transition hover:bg-white"
+            className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-black px-6 py-3.5 text-sm font-medium text-white transition hover:bg-neutral-800"
           >
-            Open checkout demo
+            Checkout
           </Link>
         </aside>
       </div>

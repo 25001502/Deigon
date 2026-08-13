@@ -6,7 +6,7 @@ import { useCart } from "@/components/cart/cart-provider";
 import type { Product } from "@/lib/data/catalog";
 
 type AddToCartButtonProps = {
-  product: Pick<Product, "badge" | "handle" | "price" | "themeClass" | "title" | "vendor">;
+  product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor">;
 };
 
 export function AddToCartButton({ product }: AddToCartButtonProps) {
@@ -26,7 +26,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
           setAdded(false);
         }, 1400);
       }}
-      className="inline-flex items-center justify-center rounded-full bg-ink px-7 py-4 text-sm font-semibold uppercase tracking-[0.22em] text-sand transition hover:bg-forest"
+      className="inline-flex items-center justify-center rounded-full bg-black px-7 py-4 text-sm font-medium text-white transition hover:bg-neutral-800"
     >
       {added ? "Added to cart" : "Add to cart"}
     </button>

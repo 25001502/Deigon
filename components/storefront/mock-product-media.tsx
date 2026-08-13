@@ -24,14 +24,11 @@ export function MockProductMedia({
           <span className="rounded-full border border-white/20 bg-white/8 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/85">
             {badge}
           </span>
-          <span className="text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
-            Demo art direction
-          </span>
         </div>
 
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.26em] text-white/65">{vendor}</p>
-          <h3 className="mt-3 max-w-[10ch] font-display text-5xl leading-none text-white sm:text-6xl">
+          <h3 className="mt-3 max-w-[10ch] text-4xl font-bold leading-none text-white sm:text-5xl">
             {title}
           </h3>
         </div>

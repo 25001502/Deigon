@@ -6,13 +6,13 @@ export function CollectionCard({ collection }: { collection: Collection }) {
   return (
     <Link
       href={`/collections/${collection.handle}`}
-      className="group relative overflow-hidden rounded-4xl border border-ink/10 bg-paper p-6 shadow-[0_18px_60px_rgba(15,26,22,0.06)] transition hover:-translate-y-1 hover:shadow-[0_24px_80px_rgba(15,26,22,0.1)]"
+      className="group relative flex min-h-64 flex-col justify-end overflow-hidden rounded-lg border border-gray-200 p-6 shadow-sm transition hover:shadow-md"
     >
-      <div className={`absolute inset-x-5 top-5 h-40 rounded-3xl opacity-90 transition group-hover:scale-[1.02] ${collection.themeClass}`} />
-      <div className="relative pt-44">
-        <p className="text-xs font-semibold uppercase tracking-[0.25em] text-clay">{collection.tagline}</p>
-        <h3 className="mt-3 font-display text-4xl leading-none text-ink">{collection.title}</h3>
-        <p className="mt-4 text-sm leading-7 text-ink/70">{collection.description}</p>
+      <div className={`absolute inset-0 opacity-90 transition duration-300 group-hover:scale-105 ${collection.themeClass}`} />
+      <div className="relative">
+        <p className="text-xs font-semibold uppercase tracking-wide text-white/80">{collection.tagline}</p>
+        <h3 className="mt-2 text-2xl font-bold text-white">{collection.title}</h3>
+        <p className="mt-2 max-w-sm text-sm leading-6 text-white/85">{collection.description}</p>
       </div>
     </Link>
   );

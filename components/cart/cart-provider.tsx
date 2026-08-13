@@ -11,7 +11,7 @@ import {
 
 import type { Product } from "@/lib/data/catalog";
 
-type CartLine = Pick<Product, "badge" | "handle" | "price" | "themeClass" | "title" | "vendor"> & {
+type CartLine = Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor"> & {
   quantity: number;
 };
 
@@ -20,7 +20,7 @@ type CartContextValue = {
   itemCount: number;
   subtotal: number;
   addItem: (
-    product: Pick<Product, "badge" | "handle" | "price" | "themeClass" | "title" | "vendor">,
+    product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor">,
     quantity?: number,
   ) => void;
   removeItem: (handle: string) => void;
@@ -28,7 +28,7 @@ type CartContextValue = {
   clearCart: () => void;
 };
 
-const STORAGE_KEY = "deigon-demo-cart";
+const STORAGE_KEY = "deigon-cart";
 
 const CartContext = createContext<CartContextValue | null>(null);
 
@@ -52,11 +52,23 @@ function readStoredCart() {
 }
 
 export function CartProvider({ children }: { children: ReactNode }) {
-  const [items, setItems] = useState<CartLine[]>(readStoredCart);
+  const [items, setItems] = useState<CartLine[]>([]);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  // Cart lives in localStorage, which isn't available during SSR — load it after mount
+  // so the first client render still matches the server-rendered (empty) markup.
+  useEffect(() => {
+    setItems(readStoredCart());
+    setIsHydrated(true);
+  }, []);
 
   useEffect(() => {
+    if (!isHydrated) {
+      return;
+    }
+
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-  }, [items]);
+  }, [items, isHydrated]);
 
   const value = useMemo<CartContextValue>(() => {
     const subtotal = items.reduce((total, item) => total + item.price * item.quantity, 0);

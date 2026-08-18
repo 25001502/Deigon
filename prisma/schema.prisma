@@ -46,11 +46,11 @@ model User {
 }
 
 model Category {
-  id        String    @id @default(cuid())
+  id        String   @id @default(cuid())
   name      String
-  slug      String    @unique
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   products Product[]
 }
@@ -60,7 +60,8 @@ model Product {
   name        String
   slug        String   @unique
   description String?
-  price       Decimal  @db.Decimal(10, 2)
+  isActive    Boolean  @default(true)
+  featured    Boolean  @default(false)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -71,16 +72,22 @@ model Product {
   variants ProductVariant[]
   cartItems CartItem[]
   orderItems OrderItem[]
+
+  @@index([categoryId])
+  @@index([isActive])
+  @@index([featured])
 }
 
 model ProductImage {
-  id        String  @id @default(cuid())
-  url       String
-  alt       String?
-  position  Int     @default(0)
+  id       String @id @default(cuid())
+  url      String
+  alt      String?
+  position Int    @default(0)
 
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
 }
 
 model ProductVariant {
@@ -89,30 +96,45 @@ model ProductVariant {
   size      String?
   color     String?
   price     Decimal  @db.Decimal(10, 2)
-  stock     Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   productId String
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
+  inventory Inventory?
+
   cartItems  CartItem[]
   orderItems OrderItem[]
+
+  @@index([productId])
+}
+
+model Inventory {
+  id        String   @id @default(cuid())
+  quantity  Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  variantId String   @unique
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
 }
 
 model Cart {
   id        String   @id @default(cuid())
-  userId    String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   items CartItem[]
+
+  @@unique([userId])
 }
 
 model CartItem {
-  id        String @id @default(cuid())
-  quantity  Int    @default(1)
+  id       String @id @default(cuid())
+  quantity Int    @default(1)
 
   cartId    String
   productId String
@@ -123,41 +145,49 @@ model CartItem {
   variant ProductVariant @relation(fields: [variantId], references: [id])
 
   @@unique([cartId, variantId])
+  @@index([variantId])
 }
 
 model Address {
-  id           String @id @default(cuid())
+  id           String  @id @default(cuid())
   fullName     String
   addressLine1 String
   addressLine2 String?
   city         String
   province     String
   postalCode   String
-  country      String @default("South Africa")
+  country      String  @default("South Africa")
   phone        String?
 
   userId String
   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   orders Order[]
+
+  @@index([userId])
 }
 
 model Order {
-  id            String      @id @default(cuid())
-  orderNumber   String      @unique
-  status        OrderStatus @default(PENDING)
-  total         Decimal     @db.Decimal(10, 2)
+  id            String        @id @default(cuid())
+  orderNumber   String        @unique
+  status        OrderStatus   @default(PENDING)
+  total         Decimal       @db.Decimal(10, 2)
   paymentStatus PaymentStatus @default(PENDING)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
 
   userId    String
   addressId String
 
-  user    User     @relation(fields: [userId], references: [id])
-  address Address  @relation(fields: [addressId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  address Address @relation(fields: [addressId], references: [id])
+
   items   OrderItem[]
   payment Payment?
+
+  @@index([userId])
+  @@index([status])
+  @@index([paymentStatus])
 }
 
 model OrderItem {
@@ -169,9 +199,12 @@ model OrderItem {
   productId String
   variantId String
 
-  order   Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
   product Product        @relation(fields: [productId], references: [id])
-  variant ProductVariant @relation(fields: [variantId], references: [id])
+  variant ProductVariant  @relation(fields: [variantId], references: [id])
+
+  @@index([orderId])
+  @@index([variantId])
 }
 
 model Payment {
@@ -184,5 +217,5 @@ model Payment {
   updatedAt     DateTime      @updatedAt
 
   orderId String @unique
-  order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }

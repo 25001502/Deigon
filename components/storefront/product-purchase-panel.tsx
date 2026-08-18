@@ -1,23 +1,27 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { startTransition, useState } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
 import type { Product } from "@/lib/data/catalog";
 
 type ProductPurchasePanelProps = {
-  product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor">;
+  product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor"> & {
+    variantId?: string;
+  };
 };
 
 export function ProductPurchasePanel({ product }: ProductPurchasePanelProps) {
   const { addItem } = useCart();
+  const router = useRouter();
   const [quantity, setQuantity] = useState(1);
   const [added, setAdded] = useState(false);
 
-  const addToCart = () => {
+  const addToCart = async () => {
+    await addItem(product, quantity);
     startTransition(() => {
-      addItem(product, quantity);
       setAdded(true);
     });
 
@@ -58,7 +62,10 @@ export function ProductPurchasePanel({ product }: ProductPurchasePanelProps) {
       </button>
       <Link
         href="/checkout"
-        onClick={addToCart}
+        onClick={(event) => {
+          event.preventDefault();
+          void addToCart().then(() => router.push("/checkout"));
+        }}
         className="flex w-full items-center justify-center rounded-full bg-black px-6 py-4 text-sm font-medium text-white transition hover:bg-neutral-800"
       >
         Buy it now

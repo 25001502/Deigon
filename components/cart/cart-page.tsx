@@ -8,7 +8,7 @@ import { MockProductMedia } from "@/components/storefront/mock-product-media";
 import { formatRand } from "@/lib/money";
 
 export function CartPage() {
-  const { itemCount, items, removeItem, setQuantity, subtotal } = useCart();
+  const { clearCart, itemCount, items, removeItem, setQuantity, subtotal } = useCart();
 
   if (items.length === 0) {
     return (
@@ -32,6 +32,13 @@ export function CartPage() {
       <h1 className="text-2xl font-bold text-gray-900">
         Your cart ({itemCount} item{itemCount === 1 ? "" : "s"})
       </h1>
+      <button
+        type="button"
+        onClick={clearCart}
+        className="mt-2 text-xs font-medium uppercase tracking-wide text-gray-500 underline-offset-2 transition hover:text-black hover:underline"
+      >
+        Clear cart
+      </button>
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[1.1fr_0.9fr]">
         <section className="divide-y divide-gray-200 border-y border-gray-200">

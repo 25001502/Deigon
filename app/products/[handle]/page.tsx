@@ -5,13 +5,9 @@ import { notFound } from "next/navigation";
 import { MockProductMedia } from "@/components/storefront/mock-product-media";
 import { ProductPurchasePanel } from "@/components/storefront/product-purchase-panel";
 import { ProductCard } from "@/components/storefront/product-card";
-import {
-  getCollectionByHandle,
-  getProductByHandle,
-  getProductsByCollection,
-  storeInfo,
-} from "@/lib/data/catalog";
+import { getCollectionByHandle, storeInfo } from "@/lib/data/catalog";
 import { formatRand } from "@/lib/money";
+import { getProductBySlug, getProducts, ProductApiError } from "@/lib/products";
 
 type ProductPageProps = {
   params: Promise<{
@@ -21,14 +17,17 @@ type ProductPageProps = {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { handle } = await params;
-  const product = getProductByHandle(handle);
-
-  if (!product) {
-    notFound();
+  let product;
+  try {
+    product = await getProductBySlug(handle);
+  } catch (error) {
+    if (error instanceof ProductApiError && error.status === 404) notFound();
+    throw error;
   }
 
   const collection = getCollectionByHandle(product.collectionHandle);
-  const relatedProducts = getProductsByCollection(product.collectionHandle)
+  const { products: relatedProducts } = await getProducts({ category: product.collectionHandle });
+  const related = relatedProducts
     .filter((item) => item.handle !== product.handle)
     .slice(0, 3);
   const gallery = product.images && product.images.length > 0 ? product.images : product.image ? [product.image] : [];
@@ -113,7 +112,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
         </div>
       </section>
 
-      {relatedProducts.length > 0 ? (
+      {related.length > 0 ? (
         <section className="mx-auto mt-16 max-w-6xl">
           <div className="flex items-end justify-between gap-4 border-t border-neutral-300 pt-8">
             <h2 className="text-2xl font-bold text-black">You may also like</h2>
@@ -128,7 +127,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3">
-            {relatedProducts.map((relatedProduct) => (
+            {related.map((relatedProduct) => (
               <ProductCard key={relatedProduct.handle} product={relatedProduct} />
             ))}
           </div>

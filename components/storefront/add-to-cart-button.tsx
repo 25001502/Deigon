@@ -6,7 +6,9 @@ import { useCart } from "@/components/cart/cart-provider";
 import type { Product } from "@/lib/data/catalog";
 
 type AddToCartButtonProps = {
-  product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor">;
+  product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor"> & {
+    variantId?: string;
+  };
 };
 
 export function AddToCartButton({ product }: AddToCartButtonProps) {
@@ -18,7 +20,7 @@ export function AddToCartButton({ product }: AddToCartButtonProps) {
       type="button"
       onClick={() => {
         startTransition(() => {
-          addItem(product);
+          void addItem(product);
           setAdded(true);
         });
 

@@ -1,12 +1,31 @@
 import Link from "next/link";
 
-import { getFeaturedProducts, getFoxygetonCollectionProducts } from "@/lib/data/catalog";
 import { ProductCard } from "@/components/storefront/product-card";
+import { getProducts, ProductApiError } from "@/lib/products";
 
-const featuredProducts = getFeaturedProducts();
-const foxygeonProducts = getFoxygetonCollectionProducts();
+export default async function Home() {
+  let featuredProducts = [];
+  let foxygeonProducts = [];
 
-export default function Home() {
+  try {
+    const { products } = await getProducts({ pageSize: 50 });
+    featuredProducts = products.filter((product) => product.featured);
+    foxygeonProducts = products
+      .filter((product) => !product.featured && product.collectionHandle === "foxygeon-collections")
+      .slice(0, 4);
+  } catch (error) {
+    return (
+      <main>
+        <section className="mx-auto max-w-7xl px-4 py-20 sm:px-6 lg:px-8">
+          <h1 className="text-2xl font-bold text-gray-900">Products are temporarily unavailable</h1>
+          <p className="mt-3 text-sm text-gray-600">
+            {error instanceof ProductApiError ? "Please try again shortly." : "We could not load the storefront."}
+          </p>
+        </section>
+      </main>
+    );
+  }
+
   return (
     <main>
       {/* Hero */}

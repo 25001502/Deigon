@@ -1,26 +1,23 @@
-import { AccountSignInForm } from "@/components/storefront/account-sign-in-form";
-import { storeInfo } from "@/lib/data/catalog";
+import { AccountDashboard } from "@/components/account/account-dashboard";
+import { requireUser } from "@/lib/auth/require-user";
+import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export const metadata = {
   title: "Account",
 };
 
-export default function AccountPage() {
-  return (
-    <main className="mx-auto flex min-h-[60vh] max-w-md flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
-      <h1 className="text-2xl font-bold text-gray-900">Sign in</h1>
-      <p className="mt-2 text-sm text-gray-600">Customer accounts are launching soon.</p>
+export default async function AccountPage() {
+  const user = await requireUser().catch(() => redirect("/login"));
 
-      <AccountSignInForm />
+  const [profile, addresses, orders] = await Promise.all([
+    prisma.user.findUnique({ where: { id: user.id }, select: { name: true, email: true, phone: true, role: true } }),
+    prisma.address.findMany({ where: { userId: user.id }, orderBy: { id: "desc" } }),
+    prisma.order.findMany({ where: { userId: user.id }, select: { id: true, orderNumber: true, status: true, total: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
+  ]);
 
-      <p className="mt-6 text-xs leading-6 text-gray-500">
-        Need help with an order? Email us at{" "}
-        <a href={`mailto:${storeInfo.email}`} className="underline">
-          {storeInfo.email}
-        </a>{" "}
-        or call {storeInfo.phone}.
-      </p>
-    </main>
-  );
+  if (!profile) redirect("/login");
+
+  return <AccountDashboard profile={profile} addresses={addresses} orders={orders.map((order) => ({ ...order, total: order.total.toString() }))} />;
 }
 

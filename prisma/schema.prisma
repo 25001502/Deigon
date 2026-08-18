@@ -33,9 +33,10 @@ enum PaymentStatus {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id
   email     String   @unique
   name      String?
+  phone     String?
   role      UserRole @default(CUSTOMER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -60,6 +61,8 @@ model Product {
   name        String
   slug        String   @unique
   description String?
+  badge       String?
+  details     String[]
   isActive    Boolean  @default(true)
   featured    Boolean  @default(false)
   createdAt   DateTime @default(now())

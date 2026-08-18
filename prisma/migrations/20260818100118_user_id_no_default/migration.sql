@@ -1,0 +1,2 @@
+-- No-op: Prisma's cuid() default was client-side only (never a DB column default),
+-- so removing it requires no DDL. Callers must now supply User.id explicitly (Supabase auth.users.id).

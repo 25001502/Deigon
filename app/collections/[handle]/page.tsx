@@ -2,7 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProductCard } from "@/components/storefront/product-card";
-import { getCollectionByHandle, getProductsByCollection } from "@/lib/data/catalog";
+import { getCollectionByHandle, type Product } from "@/lib/data/catalog";
+import { getProducts, ProductApiError } from "@/lib/products";
 
 type CollectionPageProps = {
   params: Promise<{
@@ -18,7 +19,18 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
     notFound();
   }
 
-  const products = getProductsByCollection(handle);
+  let products: Product[] = [];
+  let loadError = false;
+
+  try {
+    ({ products } = await getProducts({ category: handle }));
+  } catch (error) {
+    if (error instanceof ProductApiError && error.status === 404) {
+      notFound();
+    }
+    loadError = true;
+    products = [];
+  }
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -37,13 +49,17 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
       </div>
 
       <div className="mt-8 flex items-center justify-between border-b border-gray-200 pb-4">
-        <p className="text-sm text-gray-600">{products.length} products</p>
+        <p className="text-sm text-gray-600">{loadError ? "Products unavailable" : `${products.length} products`}</p>
       </div>
 
       <section className="mt-8 grid grid-cols-2 gap-x-4 gap-y-10 sm:grid-cols-3 lg:grid-cols-4">
-        {products.map((product) => (
-          <ProductCard key={product.handle} product={product} />
-        ))}
+        {loadError ? (
+          <p className="col-span-full py-12 text-center text-sm text-gray-600">Products could not be loaded. Please try again shortly.</p>
+        ) : products.length === 0 ? (
+          <p className="col-span-full py-12 text-center text-sm text-gray-600">No products found in this collection.</p>
+        ) : (
+          products.map((product) => <ProductCard key={product.handle} product={product} />)
+        )}
       </section>
     </main>
   );

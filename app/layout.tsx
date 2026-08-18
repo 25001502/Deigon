@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Space_Grotesk } from "next/font/google";
 
 import { CartProvider } from "@/components/cart/cart-provider";
+import { AuthProvider } from "@/components/auth/auth-provider";
 import { Footer } from "@/components/storefront/footer";
 import { Header } from "@/components/storefront/header";
 import "./globals.css";
@@ -36,13 +37,15 @@ export default function RootLayout({
       <body
         className={`${spaceGrotesk.variable} ${cormorant.variable} bg-white text-gray-900 antialiased`}
       >
-        <CartProvider>
-          <div className="relative min-h-screen overflow-hidden">
-            <Header />
-            {children}
-            <Footer />
-          </div>
-        </CartProvider>
+        <AuthProvider>
+          <CartProvider>
+            <div className="relative min-h-screen overflow-hidden">
+              <Header />
+              {children}
+              <Footer />
+            </div>
+          </CartProvider>
+        </AuthProvider>
       </body>
     </html>
   );

@@ -8,9 +8,13 @@ import { collections, products } from "../lib/data/catalog";
 config({ path: ".env.local" });
 
 // Standalone client for the one-off seed run (not the app's request-scoped singleton in lib/prisma.ts).
+// Local/dev databases (e.g. a local Postgres used to dry-run this seed) don't speak TLS; only force
+// SSL for non-local hosts such as Supabase.
+const databaseUrl = process.env.DATABASE_URL ?? "";
+const isLocalDatabase = /(localhost|127\.0\.0\.1)/.test(databaseUrl);
 const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },
+  connectionString: databaseUrl,
+  ssl: isLocalDatabase ? undefined : { rejectUnauthorized: false },
 });
 const prisma = new PrismaClient({ adapter });
 
@@ -89,19 +93,44 @@ async function main() {
       imageCount += created.count;
     }
 
-    const sku = variantSkuForHandle(item.handle);
-    const variant = await prisma.productVariant.upsert({
-      where: { sku },
-      update: { price: item.price, productId: product.id },
-      create: { sku, price: item.price, productId: product.id },
-    });
-    variantCount += 1;
+    // Products with an explicit color/size matrix (e.g. Legacy Links) seed one ProductVariant per
+    // combination; everything else falls back to a single generic (color: null, size: null) variant
+    // using the product's own price, matching the historical single-SKU behaviour.
+    const variantSeeds =
+      item.variantSeeds && item.variantSeeds.length > 0
+        ? item.variantSeeds
+        : [{ sku: variantSkuForHandle(item.handle), color: null, size: null, price: item.price }];
 
-    const existingInventory = await prisma.inventory.findUnique({ where: { variantId: variant.id } });
-    if (!existingInventory) {
-      // Only set on first creation so manually adjusted stock is never reset by rerunning the seed.
-      await prisma.inventory.create({ data: { variantId: variant.id, quantity: DEV_DEFAULT_STOCK } });
-      inventoryCreatedCount += 1;
+    for (const variantSeed of variantSeeds) {
+      const price = variantSeed.price ?? item.price;
+      const variant = await prisma.productVariant.upsert({
+        where: { sku: variantSeed.sku },
+        update: {
+          price,
+          productId: product.id,
+          color: variantSeed.color ?? null,
+          size: variantSeed.size ?? null,
+        },
+        create: {
+          sku: variantSeed.sku,
+          price,
+          productId: product.id,
+          color: variantSeed.color ?? null,
+          size: variantSeed.size ?? null,
+        },
+      });
+      variantCount += 1;
+
+      // Every ProductVariant must have exactly one Inventory row for the frontend variant selector
+      // to treat it as purchasable. Only set the quantity on first creation so manually adjusted or
+      // previously seeded stock (e.g. the Legacy Links rows created directly in Supabase) is never
+      // reset by rerunning the seed — this keeps the seed idempotent.
+      const existingInventory = await prisma.inventory.findUnique({ where: { variantId: variant.id } });
+      if (!existingInventory) {
+        const quantity = variantSeed.quantity ?? DEV_DEFAULT_STOCK;
+        await prisma.inventory.create({ data: { variantId: variant.id, quantity } });
+        inventoryCreatedCount += 1;
+      }
     }
   }
 

@@ -1,15 +1,21 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { useState } from "react";
 
-import type { Product } from "@/lib/data/catalog";
 import { formatRand } from "@/lib/money";
+import type { StorefrontProduct } from "@/lib/products";
 
 import { MockProductMedia } from "./mock-product-media";
+import { ProductQuickView } from "./product-quick-view";
 
-export function ProductCard({ product }: { product: Product }) {
+export function ProductCard({ product }: { product: StorefrontProduct }) {
+  const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
+
   return (
     <article className="group">
-      <Link href={`/products/${product.handle}`} className="relative block overflow-hidden rounded-lg bg-gray-100">
+      <Link href={`/products/${product.handle}`} onClick={(event) => { if (!event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) { event.preventDefault(); setIsQuickViewOpen(true); } }} className="relative block overflow-hidden rounded-lg bg-gray-100" aria-label={`Quick view ${product.title}`}>
         <div className="relative aspect-3/4 w-full overflow-hidden">
           {product.image ? (
             <Image
@@ -38,9 +44,9 @@ export function ProductCard({ product }: { product: Product }) {
 
       <div className="mt-3">
         <h3 className="text-sm font-semibold text-gray-900">
-          <Link href={`/products/${product.handle}`} className="hover:underline">
+          <button type="button" onClick={() => setIsQuickViewOpen(true)} className="text-left hover:underline">
             {product.title}
-          </Link>
+          </button>
         </h3>
         <p className="mt-0.5 text-xs text-gray-500">
           <span className="font-medium">Vendor:</span> {product.vendor}
@@ -50,6 +56,7 @@ export function ProductCard({ product }: { product: Product }) {
           {formatRand(product.price)}
         </p>
       </div>
+      {isQuickViewOpen ? <ProductQuickView product={product} onClose={() => setIsQuickViewOpen(false)} /> : null}
     </article>
   );
 }

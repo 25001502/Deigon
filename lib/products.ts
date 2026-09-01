@@ -30,7 +30,20 @@ type ProductsResponse = {
 
 type ProductResponse = { ok: true; product: ApiProduct };
 
-export type StorefrontProduct = Product & { variantId?: string };
+export type StorefrontVariant = {
+  id: string;
+  variantId: string;
+  sku: string;
+  size: string | null;
+  color: string | null;
+  price: number;
+  inventory: { quantity: number; inStock: boolean };
+};
+
+export type StorefrontProduct = Product & {
+  variantId?: string;
+  variants: StorefrontVariant[];
+};
 
 export class ProductApiError extends Error {
   constructor(
@@ -87,6 +100,7 @@ function normalizeProduct(product: ApiProduct): StorefrontProduct {
     images,
     featured: product.featured,
     variantId: firstVariant?.id,
+    variants: product.variants.map((variant) => ({ ...variant, variantId: variant.id })),
   };
 }
 

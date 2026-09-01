@@ -1,3 +1,29 @@
+export type ProductVariantSeed = {
+  sku: string;
+  color?: string | null;
+  size?: string | null;
+  price?: number;
+  quantity?: number;
+};
+
+// DEIGON-wide clothing variant rule: every clothing product offers the same 10 combinations
+// (2 colors x 5 sizes), and color/size never changes price — the variant price always equals
+// the product's own price. Call this for any clothing product's `variants` field.
+export const CLOTHING_COLORS = ["White", "Black"] as const;
+export const CLOTHING_SIZES = ["S", "M", "L", "XL", "2XL"] as const;
+
+export function clothingVariants(handle: string, price: number): ProductVariantSeed[] {
+  const skuPrefix = handle.toUpperCase();
+  return CLOTHING_COLORS.flatMap((color) =>
+    CLOTHING_SIZES.map((size) => ({
+      sku: `${skuPrefix}-${color.toUpperCase()}-${size}`,
+      color,
+      size,
+      price,
+    })),
+  );
+}
+
 export type Product = {
   handle: string;
   title: string;
@@ -12,6 +38,7 @@ export type Product = {
   image?: string;
   images?: string[];
   featured?: boolean;
+  variantSeeds?: ProductVariantSeed[];
 };
 
 export type Collection = {
@@ -119,6 +146,7 @@ export const products: Product[] = [
       "https://www.deigon.co.za/cdn/shop/files/IMG_6758.jpg?v=1783024554&width=1200",
     ],
     featured: true,
+    variantSeeds: clothingVariants("blaze-baller", 400),
   },
   {
     handle: "champions",
@@ -138,6 +166,7 @@ export const products: Product[] = [
       "https://www.deigon.co.za/cdn/shop/files/IMG_3857.jpg?v=1782847524&width=1200",
     ],
     featured: true,
+    variantSeeds: clothingVariants("champions", 350),
   },
   {
     handle: "foxygeon-hoodie",
@@ -156,6 +185,7 @@ export const products: Product[] = [
       "https://www.deigon.co.za/cdn/shop/files/6861f6c3-16b0-4eb8-a701-f879161cad56.jpg?v=1782998517&width=1200",
       "https://www.deigon.co.za/cdn/shop/files/IMG_8037.jpg?v=1782998594&width=1200",
     ],
+    variantSeeds: clothingVariants("foxygeon-hoodie", 350),
   },
   {
     handle: "no-destruction",
@@ -172,6 +202,7 @@ export const products: Product[] = [
       "https://www.deigon.co.za/cdn/shop/files/IMG_6493.jpg?v=1770066751&width=1200",
       "https://www.deigon.co.za/cdn/shop/files/IMG_6492.jpg?v=1770066751&width=1200",
     ],
+    variantSeeds: clothingVariants("no-destruction", 250),
   },
   {
     handle: "legacy-links",
@@ -197,6 +228,7 @@ export const products: Product[] = [
       "https://www.deigon.co.za/cdn/shop/files/Photoroom_20260705_182357_2adcdcd4-169b-445d-807a-75d0a7436281.png?v=1783714750&width=1200",
       "https://www.deigon.co.za/cdn/shop/files/Photoroom_20260705_182331_ef17a3e5-e56a-406c-8f48-c39713db2cda.png?v=1783714750&width=1200",
     ],
+    variantSeeds: clothingVariants("legacy-links", 400),
   },
   {
     handle: "tropical-tribe",
@@ -210,6 +242,7 @@ export const products: Product[] = [
     themeClass: "theme-tropical-tribe",
     image:
       "https://hvawfylsdaormrkghbbw.supabase.co/storage/v1/object/sign/products/TropicalTribe.JPG?token=eyJraWQiOiJzdG9yYWdlLXVybC1zaWduaW5nLWtleV8wNWZkNjhlOS00ODJhLTQ1NGYtODZmYS1mMmNlOWNjY2NhZjMiLCJhbGciOiJIUzI1NiJ9.eyJ1cmwiOiJwcm9kdWN0cy9Ucm9waWNhbFRyaWJlLkpQRyIsInNjb3BlIjoiZG93bmxvYWQiLCJpYXQiOjE3ODY0NzM0MDQsImV4cCI6MTgxODAwOTQwNH0.dA3c16Tq9GNFdpl-guJnq0Z7lXidKLt53tStj806NTc",
+    variantSeeds: clothingVariants("tropical-tribe", 380),
   },
   {
     handle: "richer-than-my-ex-crop-top",
@@ -227,6 +260,7 @@ export const products: Product[] = [
       "https://www.deigon.co.za/cdn/shop/files/IMG_4520.jpg?v=1770065827&width=1200",
       "https://www.deigon.co.za/cdn/shop/files/IMG_4422.jpg?v=1770065827&width=1200",
     ],
+    variantSeeds: clothingVariants("richer-than-my-ex-crop-top", 150),
   },
   {
     handle: "divine",

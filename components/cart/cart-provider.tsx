@@ -15,6 +15,9 @@ import type { Product } from "@/lib/data/catalog";
 
 type CartProduct = Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor"> & {
   variantId?: string;
+  sku?: string;
+  size?: string | null;
+  color?: string | null;
 };
 
 type CartLine = CartProduct & {
@@ -26,7 +29,7 @@ type ServerCart = {
     variantId: string;
     quantity: number;
     product: { slug: string; name: string; vendor: string; collectionHandle: string; badge: string | null; images: { url: string; alt: string | null }[] };
-    variant: { price: number };
+    variant: { id: string; sku?: string; size?: string | null; color?: string | null; price: number };
   }>;
   itemCount: number;
   subtotal: number;
@@ -45,6 +48,10 @@ type CartContextValue = {
 const STORAGE_KEY = "deigon-cart";
 
 const CartContext = createContext<CartContextValue | null>(null);
+
+function cartLineKey(item: { handle: string; variantId?: string }) {
+  return item.variantId ?? item.handle;
+}
 
 function readStoredCart() {
   if (typeof window === "undefined") {
@@ -68,6 +75,9 @@ function readStoredCart() {
 function toCartLines(cart: ServerCart): CartLine[] {
   return cart.items.map((item) => ({
     variantId: item.variantId,
+    sku: item.variant.sku,
+    size: item.variant.size,
+    color: item.variant.color,
     handle: item.product.slug,
     title: item.product.name,
     vendor: item.product.vendor,
@@ -179,14 +189,15 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
 
         setItems((currentItems) => {
-          const existing = currentItems.find((item) => item.handle === product.handle);
+          const productKey = cartLineKey(product);
+          const existing = currentItems.find((item) => cartLineKey(item) === productKey);
 
           if (!existing) {
             return [...currentItems, { ...product, quantity }];
           }
 
           return currentItems.map((item) =>
-            item.handle === product.handle
+            cartLineKey(item) === productKey
               ? { ...item, quantity: item.quantity + quantity }
               : item,
           );
@@ -203,7 +214,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
               if (user?.id === userId && mutationSequenceRef.current === requestId) setItems(toCartLines(cart));
             }).catch(() => undefined);
         }
-        setItems((currentItems) => currentItems.filter((candidate) => candidate.handle !== handle));
+        setItems((currentItems) => currentItems.filter((candidate) => cartLineKey(candidate) !== handle));
         return Promise.resolve();
       },
       setQuantity: (handle, quantity) => {
@@ -227,7 +238,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         }
         setItems((currentItems) =>
           currentItems.flatMap((item) => {
-            if (item.handle !== handle) {
+            if (cartLineKey(item) !== handle) {
               return item;
             }
 

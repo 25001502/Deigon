@@ -11,13 +11,37 @@ export default async function AccountPage() {
   const user = await requireUser().catch(() => redirect("/login"));
 
   const [profile, addresses, orders] = await Promise.all([
-    prisma.user.findUnique({ where: { id: user.id }, select: { name: true, email: true, phone: true, role: true } }),
-    prisma.address.findMany({ where: { userId: user.id }, orderBy: { id: "desc" } }),
-    prisma.order.findMany({ where: { userId: user.id }, select: { id: true, orderNumber: true, status: true, total: true, createdAt: true }, orderBy: { createdAt: "desc" } }),
+    prisma.user.findUnique({
+      where: { id: user.id },
+      select: { name: true, email: true, phone: true, role: true },
+    }),
+    prisma.address.findMany({
+      where: { userId: user.id },
+      orderBy: { id: "desc" },
+    }),
+    prisma.order.findMany({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        orderNumber: true,
+        status: true,
+        total: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    }),
   ]);
 
   if (!profile) redirect("/login");
 
-  return <AccountDashboard profile={profile} addresses={addresses} orders={orders.map((order) => ({ ...order, total: order.total.toString() }))} />;
+  return (
+    <AccountDashboard
+      profile={profile}
+      addresses={addresses}
+      orders={orders.map((order) => ({
+        ...order,
+        total: order.total.toString(),
+      }))}
+    />
+  );
 }
-

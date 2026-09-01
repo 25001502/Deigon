@@ -179,17 +179,21 @@ export function CheckoutPreview() {
             </div>
           ) : (
             <div className="mt-4 space-y-4">
-              {items.map((item) => (
-                <div key={item.handle} className="flex items-center justify-between gap-4 border-b border-gray-200 pb-4">
-                  <div>
-                    <p className="text-sm font-medium text-gray-900">{item.title}</p>
-                    <p className="mt-0.5 text-xs text-gray-500">Qty {item.quantity}</p>
+              {items.map((item) => {
+                const options = [item.color, item.size].filter(Boolean).join(" / ");
+                return (
+                  <div key={item.variantId ?? item.handle} className="flex items-center justify-between gap-4 border-b border-gray-200 pb-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">{item.title}</p>
+                      {options ? <p className="mt-0.5 text-xs text-gray-500">{options}</p> : null}
+                      <p className="mt-0.5 text-xs text-gray-500">Qty {item.quantity}</p>
+                    </div>
+                    <span className="text-sm font-medium text-gray-900">
+                      {formatRand(item.price * item.quantity)}
+                    </span>
                   </div>
-                  <span className="text-sm font-medium text-gray-900">
-                    {formatRand(item.price * item.quantity)}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
 
               <div className="flex items-center justify-between text-sm text-gray-600">
                 <span>Subtotal</span>

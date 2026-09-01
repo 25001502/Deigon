@@ -2,8 +2,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { ProductCard } from "@/components/storefront/product-card";
-import { getCollectionByHandle, type Product } from "@/lib/data/catalog";
-import { getProducts, ProductApiError } from "@/lib/products";
+import { getCollectionByHandle } from "@/lib/data/catalog";
+import { getProducts, ProductApiError, type StorefrontProduct } from "@/lib/products";
 
 type CollectionPageProps = {
   params: Promise<{
@@ -19,7 +19,7 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
     notFound();
   }
 
-  let products: Product[] = [];
+  let products: StorefrontProduct[] = [];
   let loadError = false;
 
   try {

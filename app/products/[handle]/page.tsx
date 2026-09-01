@@ -6,7 +6,6 @@ import { MockProductMedia } from "@/components/storefront/mock-product-media";
 import { ProductPurchasePanel } from "@/components/storefront/product-purchase-panel";
 import { ProductCard } from "@/components/storefront/product-card";
 import { getCollectionByHandle, storeInfo } from "@/lib/data/catalog";
-import { formatRand } from "@/lib/money";
 import { getProductBySlug, getProducts, ProductApiError } from "@/lib/products";
 
 type ProductPageProps = {
@@ -78,10 +77,6 @@ export default async function ProductPage({ params }: ProductPageProps) {
               <p className="text-sm text-neutral-600">{product.vendor}</p>
             )}
             <h1 className="mt-6 text-4xl font-bold tracking-normal text-black sm:text-5xl">{product.title}</h1>
-            <p className="mt-6 text-xl font-medium text-neutral-900">{formatRand(product.price)}</p>
-            <p className="mt-3 text-sm text-neutral-600">
-              <Link href="/policies/shipping-policy" className="underline">Shipping</Link> calculated at checkout.
-            </p>
           </div>
 
           <div className="mt-7">

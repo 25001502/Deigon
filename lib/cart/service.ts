@@ -14,6 +14,16 @@ const cartInclude = {
   },
 };
 
+// Prisma's default interactive-transaction timeout (5000ms) is too short for this project's
+// Supabase pooler round-trips (each transaction here does several sequential queries: variant
+// lookup, cart upsert, cart item read + write). Once the timeout was exceeded, Prisma threw
+// PrismaClientKnownRequestError ("Unable to start a transaction in the given time" / a commit on
+// an expired transaction), which lib/api/errors.ts correctly, but unhelpfully, mapped to a bare
+// 500 on POST /api/cart/items. Raising both maxWait (time allowed to acquire a pooled connection)
+// and timeout (time allowed for the transaction body to run) fixes the 500 without touching the
+// variant-aware cart logic itself.
+const cartTransactionOptions = { maxWait: 15000, timeout: 15000 };
+
 export type CartWithItems = Awaited<ReturnType<typeof getOrCreateCart>>;
 
 type CartItemPayload = {
@@ -81,7 +91,7 @@ export async function addItem(userId: string, payload: CartItemPayload) {
         },
       });
     }
-  });
+  }, cartTransactionOptions);
 
   return getCart(userId);
 }
@@ -101,7 +111,7 @@ export async function updateItem(userId: string, variantId: string, rawQuantity:
     }
 
     await tx.cartItem.update({ where: { id: item.id }, data: { quantity } });
-  });
+  }, cartTransactionOptions);
 
   return getCart(userId);
 }
@@ -158,7 +168,7 @@ export async function mergeItems(userId: string, items: Array<{ variantId?: unkn
       else await tx.cartItem.create({ data: { cartId: cart.id, productId: variant.productId, variantId: variant.id, quantity: nextQuantity } });
       results.push({ variantId: variant.id, quantity: nextQuantity, status: "merged" });
     }
-  });
+  }, { maxWait: 15000, timeout: Math.max(15000, items.length * 5000) });
 
   return { cart: await getCart(userId), results };
 }

@@ -37,16 +37,21 @@ export async function GET(request: NextRequest) {
       where.category = { slug: categorySlug };
     }
 
-    const [total, products] = await prisma.$transaction([
-      prisma.product.count({ where }),
-      prisma.product.findMany({
-        where,
-        include: productInclude,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ]);
+    const [total, products] = await prisma.$transaction(
+      [
+        prisma.product.count({ where }),
+        prisma.product.findMany({
+          where,
+          include: productInclude,
+          orderBy: { createdAt: "desc" },
+          skip: (page - 1) * pageSize,
+          take: pageSize,
+        }),
+      ],
+      // See lib/cart/service.ts cartTransactionOptions for why this pooler needs a longer timeout
+      // than Prisma's 5000ms default.
+      { timeout: 15000 },
+    );
 
     return NextResponse.json({
       ok: true,

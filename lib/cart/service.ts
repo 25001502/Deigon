@@ -2,17 +2,47 @@ import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/errors";
 import type { Prisma } from "@prisma/client";
 
-const cartInclude = {
+// Selects only the fields the cart API response (serializeCart) and frontend (CartProvider,
+// cart-page) actually consume. Replaces the previous deep `include` (which pulled every Product
+// field, the full Category row, ALL ProductImages, and every ProductVariant/Inventory field) with
+// a narrow `select`. The cart UI only ever renders the FIRST product image, so we also cut the
+// image fetch from "all images for the product" down to the single lowest-position row.
+const cartSelect = {
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+  userId: true,
   items: {
-    include: {
+    select: {
+      variantId: true,
+      quantity: true,
       product: {
-        include: { category: true, images: { orderBy: { position: "asc" as const } } },
+        select: {
+          id: true,
+          slug: true,
+          name: true,
+          badge: true,
+          category: { select: { name: true, slug: true } },
+          images: {
+            select: { url: true, alt: true, position: true },
+            orderBy: { position: "asc" as const },
+            take: 1,
+          },
+        },
       },
-      variant: { include: { inventory: true } },
+      variant: {
+        select: {
+          id: true,
+          size: true,
+          color: true,
+          price: true,
+          inventory: { select: { quantity: true } },
+        },
+      },
     },
     orderBy: { id: "asc" as const },
   },
-};
+} satisfies Prisma.CartSelect;
 
 // Prisma's default interactive-transaction timeout (5000ms) is too short for this project's
 // Supabase pooler round-trips (each transaction here does several sequential queries: variant
@@ -51,13 +81,22 @@ async function getVariantForCart(tx: Prisma.TransactionClient, variantId: string
   return variant;
 }
 
-export async function getOrCreateCart(userId: string) {
-  return prisma.cart.upsert({
+// Accepts either the top-level `prisma` client or an in-flight `tx` transaction client so callers
+// that already hold an open transaction can fetch the full cart payload as part of that same
+// transaction/connection instead of issuing a brand-new `$transaction()` (with its own connection
+// acquisition) immediately afterward. This is the key change that removes the redundant
+// "mutate, then separately re-fetch the whole cart" round trip that dominated request latency.
+async function fetchCart(client: Prisma.TransactionClient | typeof prisma, userId: string) {
+  return client.cart.upsert({
     where: { userId },
     update: {},
     create: { userId },
-    include: cartInclude,
+    select: cartSelect,
   });
+}
+
+export async function getOrCreateCart(userId: string) {
+  return fetchCart(prisma, userId);
 }
 
 export async function getCart(userId: string) {
@@ -67,12 +106,13 @@ export async function getCart(userId: string) {
 export async function addItem(userId: string, payload: CartItemPayload) {
   const quantity = requirePositiveQuantity(payload.quantity);
 
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const variant = await getVariantForCart(tx, payload.variantId);
     const cart = await tx.cart.upsert({ where: { userId }, update: {}, create: { userId } });
     const existing = await tx.cartItem.findUnique({
       where: { cartId_variantId: { cartId: cart.id, variantId: variant.id } },
     });
+
     const nextQuantity = (existing?.quantity ?? 0) + quantity;
 
     if (nextQuantity > variant.inventory!.quantity) {
@@ -91,15 +131,17 @@ export async function addItem(userId: string, payload: CartItemPayload) {
         },
       });
     }
-  }, cartTransactionOptions);
 
-  return getCart(userId);
+    // Fetch the full cart payload within the same transaction/connection rather than making a
+    // second, separate `$transaction()` call after this one commits.
+    return fetchCart(tx, userId);
+  }, cartTransactionOptions);
 }
 
 export async function updateItem(userId: string, variantId: string, rawQuantity: unknown) {
   const quantity = requirePositiveQuantity(rawQuantity);
 
-  await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const variant = await getVariantForCart(tx, variantId);
     const cart = await tx.cart.findUnique({ where: { userId } });
     if (!cart) throw new ApiError("Cart item not found", 404);
@@ -111,32 +153,37 @@ export async function updateItem(userId: string, variantId: string, rawQuantity:
     }
 
     await tx.cartItem.update({ where: { id: item.id }, data: { quantity } });
-  }, cartTransactionOptions);
 
-  return getCart(userId);
+    return fetchCart(tx, userId);
+  }, cartTransactionOptions);
 }
 
 export async function removeItem(userId: string, variantId: string) {
-  const cart = await prisma.cart.findUnique({ where: { userId } });
-  if (!cart) throw new ApiError("Cart item not found", 404);
+  return prisma.$transaction(async (tx) => {
+    const cart = await tx.cart.findUnique({ where: { userId } });
+    if (!cart) throw new ApiError("Cart item not found", 404);
 
-  const item = await prisma.cartItem.findUnique({ where: { cartId_variantId: { cartId: cart.id, variantId } } });
-  if (!item) throw new ApiError("Cart item not found", 404);
+    const item = await tx.cartItem.findUnique({ where: { cartId_variantId: { cartId: cart.id, variantId } } });
+    if (!item) throw new ApiError("Cart item not found", 404);
 
-  await prisma.cartItem.delete({ where: { id: item.id } });
-  return getCart(userId);
+    await tx.cartItem.delete({ where: { id: item.id } });
+
+    return fetchCart(tx, userId);
+  }, cartTransactionOptions);
 }
 
 export async function clearCart(userId: string) {
-  const cart = await prisma.cart.findUnique({ where: { userId } });
-  if (cart) await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
-  return getCart(userId);
+  return prisma.$transaction(async (tx) => {
+    const cart = await tx.cart.findUnique({ where: { userId } });
+    if (cart) await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
+    return fetchCart(tx, userId);
+  }, cartTransactionOptions);
 }
 
 export async function mergeItems(userId: string, items: Array<{ variantId?: unknown; slug?: unknown; quantity?: unknown }>) {
   const results: { variantId: string; quantity: number; status: "merged" | "skipped"; reason?: string }[] = [];
 
-  await prisma.$transaction(async (tx) => {
+  const cart = await prisma.$transaction(async (tx) => {
     const cart = await tx.cart.upsert({ where: { userId }, update: {}, create: { userId } });
 
     for (const item of items) {
@@ -168,9 +215,11 @@ export async function mergeItems(userId: string, items: Array<{ variantId?: unkn
       else await tx.cartItem.create({ data: { cartId: cart.id, productId: variant.productId, variantId: variant.id, quantity: nextQuantity } });
       results.push({ variantId: variant.id, quantity: nextQuantity, status: "merged" });
     }
+
+    return fetchCart(tx, userId);
   }, { maxWait: 15000, timeout: Math.max(15000, items.length * 5000) });
 
-  return { cart: await getCart(userId), results };
+  return { cart, results };
 }
 
 export function serializeCart(cart: CartWithItems) {

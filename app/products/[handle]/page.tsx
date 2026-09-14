@@ -6,7 +6,7 @@ import { MockProductMedia } from "@/components/storefront/mock-product-media";
 import { ProductPurchasePanel } from "@/components/storefront/product-purchase-panel";
 import { ProductCard } from "@/components/storefront/product-card";
 import { getCollectionByHandle, storeInfo } from "@/lib/data/catalog";
-import { getProductBySlug, getProducts, ProductApiError } from "@/lib/products";
+import { getProductsFromDb, getProductBySlugFromDb } from "@/lib/products/server";
 
 type ProductPageProps = {
   params: Promise<{
@@ -16,16 +16,16 @@ type ProductPageProps = {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { handle } = await params;
-  let product;
-  try {
-    product = await getProductBySlug(handle);
-  } catch (error) {
-    if (error instanceof ProductApiError && error.status === 404) notFound();
-    throw error;
+  const product = await getProductBySlugFromDb(handle);
+
+  if (!product) {
+    notFound();
   }
 
   const collection = getCollectionByHandle(product.collectionHandle);
-  const { products: relatedProducts } = await getProducts({ category: product.collectionHandle });
+  const { products: relatedProducts } = await getProductsFromDb({
+    category: product.collectionHandle,
+  });
   const related = relatedProducts
     .filter((item) => item.handle !== product.handle)
     .slice(0, 3);

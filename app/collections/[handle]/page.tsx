@@ -3,7 +3,8 @@ import { notFound } from "next/navigation";
 
 import { ProductCard } from "@/components/storefront/product-card";
 import { getCollectionByHandle } from "@/lib/data/catalog";
-import { getProducts, ProductApiError, type StorefrontProduct } from "@/lib/products";
+import { getProductsFromDb } from "@/lib/products/server";
+import type { StorefrontProduct } from "@/lib/products";
 
 type CollectionPageProps = {
   params: Promise<{
@@ -23,13 +24,11 @@ export default async function CollectionPage({ params }: CollectionPageProps) {
   let loadError = false;
 
   try {
-    ({ products } = await getProducts({ category: handle }));
+    ({ products } = await getProductsFromDb({ category: handle }));
   } catch (error) {
-    if (error instanceof ProductApiError && error.status === 404) {
-      notFound();
-    }
-    loadError = true;
-    products = [];
+    console.error(`Failed to load products for collection "${handle}":`, error);
+  loadError = true;
+  products = [];
   }
 
   return (

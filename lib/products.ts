@@ -1,7 +1,7 @@
 import type { Product } from "@/lib/data/catalog";
 import { headers } from "next/headers";
 
-type ApiProduct = {
+export type ApiProduct = {
   id: string;
   slug: string;
   name: string;
@@ -80,7 +80,7 @@ function themeClassFor(categorySlug: string) {
   return categorySlug === "patron-fragrance" ? "theme-collection-patron" : "theme-collection-foxygeon";
 }
 
-function normalizeProduct(product: ApiProduct): StorefrontProduct {
+export function normalizeProduct(product: ApiProduct): StorefrontProduct {
   const descriptionParts = (product.description ?? "").split("\n\n");
   const images = product.images.sort((a, b) => a.position - b.position).map((image) => image.url);
   const firstVariant = product.variants[0];

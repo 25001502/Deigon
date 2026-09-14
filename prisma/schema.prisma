@@ -62,7 +62,7 @@ model Product {
   slug        String   @unique
   description String?
   badge       String?
-  details     String[]
+  details     String[] @default([])
   isActive    Boolean  @default(true)
   featured    Boolean  @default(false)
   createdAt   DateTime @default(now())

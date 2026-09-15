@@ -21,6 +21,7 @@ enum OrderStatus {
   CONFIRMED
   PROCESSING
   SHIPPED
+  READY_FOR_PICKUP
   DELIVERED
   CANCELLED
 }
@@ -30,6 +31,11 @@ enum PaymentStatus {
   PAID
   FAILED
   REFUNDED
+}
+
+enum FulfilmentType {
+  DELIVERY
+  PICKUP
 }
 
 model User {
@@ -171,40 +177,72 @@ model Address {
 }
 
 model Order {
-  id            String        @id @default(cuid())
-  orderNumber   String        @unique
-  status        OrderStatus   @default(PENDING)
-  total         Decimal       @db.Decimal(10, 2)
-  paymentStatus PaymentStatus @default(PENDING)
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  id                 String         @id @default(cuid())
+  orderNumber        String         @unique
+  idempotencyKey     String         @unique
+  status             OrderStatus    @default(PENDING)
+  fulfilmentType     FulfilmentType
+  subtotal           Decimal        @db.Decimal(10, 2)
+  shippingFee        Decimal        @db.Decimal(10, 2)
+  total              Decimal        @db.Decimal(10, 2)
+  paymentStatus      PaymentStatus  @default(PENDING)
 
-  userId    String
-  addressId String
+  customerName       String
+  customerEmail      String
+  customerPhone      String?
 
-  user    User    @relation(fields: [userId], references: [id])
-  address Address @relation(fields: [addressId], references: [id])
+  shippingAddressLine1 String?
+  shippingAddressLine2 String?
+  shippingCity         String?
+  shippingProvince     String?
+  shippingPostalCode   String?
+  shippingCountry      String?
 
-  items   OrderItem[]
-  payment Payment?
+  pickupLocation      String?
+
+  confirmedAt        DateTime?
+  cancelledAt        DateTime?
+  cancelReason       String?
+  inventoryReleasedAt DateTime?
+
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+
+  userId             String
+  addressId          String?
+
+  user               User            @relation(fields: [userId], references: [id])
+  address            Address?        @relation(fields: [addressId], references: [id], onDelete: SetNull)
+
+  items              OrderItem[]
+  payment            Payment?
 
   @@index([userId])
   @@index([status])
   @@index([paymentStatus])
+  @@index([createdAt])
 }
 
 model OrderItem {
-  id       String  @id @default(cuid())
-  quantity Int
-  price    Decimal @db.Decimal(10, 2)
+  id          String   @id @default(cuid())
 
-  orderId   String
-  productId String
-  variantId String
+  quantity    Int
+  unitPrice   Decimal  @db.Decimal(10, 2)
+  lineTotal   Decimal  @db.Decimal(10, 2)
 
-  order   Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  product Product        @relation(fields: [productId], references: [id])
-  variant ProductVariant  @relation(fields: [variantId], references: [id])
+  title       String
+  sku         String
+  size        String?
+  color       String?
+  imageUrl    String?
+
+  orderId     String
+  productId   String?
+  variantId   String?
+
+  order       Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product?       @relation(fields: [productId], references: [id], onDelete: SetNull)
+  variant     ProductVariant? @relation(fields: [variantId], references: [id], onDelete: SetNull)
 
   @@index([orderId])
   @@index([variantId])

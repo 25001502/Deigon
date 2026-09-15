@@ -4,7 +4,10 @@ import { Prisma } from "@prisma/client";
 import { AuthError } from "@/lib/auth/require-user";
 
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: 400 | 404 | 409) {
+  constructor(
+    message: string,
+    public readonly status: 400 | 404 | 409 | 500,
+  ) {
     super(message);
     this.name = "ApiError";
   }

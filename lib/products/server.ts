@@ -61,19 +61,17 @@ export async function getProductsFromDb(
     };
   }
 
-  const [total, products] = await prisma.$transaction(
-    [
-      prisma.product.count({ where }),
-      prisma.product.findMany({
-        where,
-        include: productInclude,
-        orderBy: { createdAt: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-    ],
-    { timeout: 15000 },
-  );
+  const total = await prisma.product.count({
+    where,
+  });
+
+  const products = await prisma.product.findMany({
+    where,
+    include: productInclude,
+    orderBy: { createdAt: "desc" },
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
 
   return {
     products: products

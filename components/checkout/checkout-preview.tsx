@@ -12,16 +12,54 @@ const inputClassName =
 
 const FREE_DELIVERY_THRESHOLD = 600;
 const FLAT_DELIVERY_FEE = 80;
+const CHECKOUT_IDEMPOTENCY_KEY =
+  "deigon_checkout_idempotency_key";
 
-function generateOrderReference() {
-  return `DGN-${Date.now().toString(36).toUpperCase()}`;
+type CheckoutOrder = {
+  id: string;
+  orderNumber: string;
+  status: string;
+  paymentStatus: string;
+  fulfilmentType: string;
+  subtotal: string;
+  shippingFee: string;
+  total: string;
+};
+
+type CheckoutResponse = {
+  ok?: boolean;
+  order?: CheckoutOrder;
+  message?: string;
+};
+
+function formValue(formData: FormData, name: string) {
+  return String(formData.get(name) ?? "").trim();
+}
+
+function getCheckoutIdempotencyKey() {
+  const existingKey = window.sessionStorage.getItem(
+    CHECKOUT_IDEMPOTENCY_KEY,
+  );
+
+  if (existingKey) {
+    return existingKey;
+  }
+
+  const idempotencyKey = crypto.randomUUID();
+
+  window.sessionStorage.setItem(
+    CHECKOUT_IDEMPOTENCY_KEY,
+    idempotencyKey,
+  );
+
+  return idempotencyKey;
 }
 
 export function CheckoutPreview() {
   const {
     items,
     subtotal,
-    clearCart,
+    clearCartLocally,
     waitForPendingMutations,
   } = useCart();
 
@@ -29,8 +67,8 @@ export function CheckoutPreview() {
     "delivery" | "pickup"
   >("delivery");
 
-  const [orderReference, setOrderReference] =
-    useState<string | null>(null);
+  const [order, setOrder] =
+    useState<CheckoutOrder | null>(null);
 
   const [isSubmitting, setIsSubmitting] =
     useState(false);
@@ -54,6 +92,8 @@ export function CheckoutPreview() {
     event: React.FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
 
     if (items.length === 0 || isSubmitting) {
       return;
@@ -84,28 +124,106 @@ export function CheckoutPreview() {
         return;
       }
 
-      const reference = generateOrderReference();
+      const customerPhone = formValue(
+        formData,
+        "phone",
+      );
 
-      setOrderReference(reference);
+      const requestBody = {
+        idempotencyKey:
+          getCheckoutIdempotencyKey(),
+        fulfilmentType:
+          fulfilment === "delivery"
+            ? ("DELIVERY" as const)
+            : ("PICKUP" as const),
+        customerName: [
+          formValue(formData, "firstName"),
+          formValue(formData, "lastName"),
+        ]
+          .filter(Boolean)
+          .join(" "),
+        customerEmail: formValue(
+          formData,
+          "email",
+        ),
+        ...(customerPhone
+          ? { customerPhone }
+          : {}),
+        ...(fulfilment === "delivery"
+          ? {
+              shippingAddressLine1:
+                formValue(
+                  formData,
+                  "address",
+                ),
+              shippingCity: formValue(
+                formData,
+                "city",
+              ),
+              shippingProvince:
+                formValue(
+                  formData,
+                  "province",
+                ),
+              shippingPostalCode:
+                formValue(
+                  formData,
+                  "postalCode",
+                ),
+              shippingCountry:
+                "South Africa",
+            }
+          : {
+              pickupLocation:
+                storeInfo.pickupLocation,
+            }),
+      };
 
-      /**
-       * At the moment this is still the existing
-       * checkout-preview behavior. The actual order/payment
-       * backend will replace this later.
-       */
-      await clearCart();
+      const response = await fetch(
+        "/api/checkout",
+        {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify(requestBody),
+        },
+      );
+
+      const responseBody = (await response
+        .json()
+        .catch(() => null)) as CheckoutResponse | null;
+
+      if (
+        !response.ok ||
+        !responseBody?.ok ||
+        !responseBody.order
+      ) {
+        throw new Error(
+          responseBody?.message ??
+            "We couldn't place your order. Please try again.",
+        );
+      }
+
+      setOrder(responseBody.order);
+      clearCartLocally();
+      window.sessionStorage.removeItem(
+        CHECKOUT_IDEMPOTENCY_KEY,
+      );
     } catch (error) {
       setSubmitError(
         error instanceof Error
           ? error.message
-          : "We couldn't sync your cart. Please try again.",
+          : "We couldn't place your order. Please try again.",
       );
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  if (orderReference) {
+  if (order) {
     return (
       <main className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center px-4 py-20 text-center sm:px-6 lg:px-8">
         <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-600">
@@ -119,18 +237,13 @@ export function CheckoutPreview() {
         <p className="mt-3 text-sm text-gray-600">
           Reference{" "}
           <span className="font-semibold text-gray-900">
-            {orderReference}
+            {order.orderNumber}
           </span>
         </p>
 
         <p className="mt-6 max-w-md text-sm leading-7 text-gray-600">
-          We&apos;ll email you a Yoco payment request to
-          complete this order. Once payment is confirmed
-          we&apos;ll get it{" "}
-          {fulfilment === "pickup"
-            ? `ready for pickup at ${storeInfo.pickupLocation}`
-            : "packed for delivery"}{" "}
-          within 5–10 business days.
+          Your order has been created successfully. Payment is currently pending.
+          We&apos;ll provide payment instructions before your order is processed.
         </p>
 
         <Link
@@ -193,9 +306,8 @@ export function CheckoutPreview() {
             </label>
 
             <label className="mt-4 block text-sm font-medium text-gray-700">
-              Phone
+              Phone (optional)
               <input
-                required
                 className={inputClassName}
                 name="phone"
                 placeholder="082 000 0000"
@@ -280,10 +392,20 @@ export function CheckoutPreview() {
                   </label>
                 </div>
 
+                <label className="block text-sm font-medium text-gray-700">
+                  Postal code
+                  <input
+                    required
+                    className={inputClassName}
+                    name="postalCode"
+                    placeholder="Postal code"
+                    autoComplete="postal-code"
+                  />
+                </label>
+
                 <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-600">
-                  Orders are processed and shipped
-                  within 5–10 business days. Free
-                  delivery around Thohoyandou.
+                  Orders are processed and shipped within 5–10 business days.
+                  Delivery is R80, or free on orders of R600 or more.
                 </div>
               </div>
             ) : (
@@ -425,7 +547,7 @@ export function CheckoutPreview() {
             }
           >
             {isSubmitting
-              ? "Syncing cart..."
+              ? "Placing order..."
               : "Place order"}
           </button>
 

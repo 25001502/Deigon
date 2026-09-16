@@ -83,6 +83,8 @@ type CartContextValue = {
 
   clearCart: () => void | Promise<void>;
 
+  clearCartLocally: () => void;
+
   waitForPendingMutations: () => Promise<void>;
 };
 
@@ -1000,6 +1002,16 @@ export function CartProvider({
           }
 
           return Promise.resolve();
+        },
+
+        /**
+         * CHECKOUT LOCAL CLEAR
+         *
+         * The checkout transaction clears the server cart. This only
+         * synchronizes the provider after that transaction succeeds.
+         */
+        clearCartLocally: () => {
+          commitItems([]);
         },
 
         /**

@@ -265,6 +265,12 @@ async function createOrderAttempt(
   input: ReturnType<typeof validateCheckoutInput>,
 ) {
   return prisma.$transaction(async (tx) => {
+    // Cart mutations take this same lock before reading or changing cart lines.
+    // Re-check idempotency after waiting so a completed checkout can be replayed.
+    await tx.$queryRaw`
+      SELECT "id" FROM "Cart" WHERE "userId" = ${userId} FOR UPDATE
+    `;
+
     /*
      * Re-check idempotency inside the transaction.
      *
@@ -311,6 +317,7 @@ async function createOrderAttempt(
             variant: {
               select: {
                 id: true,
+                sku: true,
                 productId: true,
                 size: true,
                 color: true,
@@ -440,7 +447,7 @@ async function createOrderAttempt(
       lineTotal: item.variant.price.mul(item.quantity),
 
       title: item.variant.product.name,
-      sku: item.variant.id,
+      sku: item.variant.sku,
 
       size: item.variant.size,
       color: item.variant.color,

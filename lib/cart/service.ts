@@ -68,6 +68,13 @@ function requirePositiveQuantity(quantity: unknown) {
   return quantity as number;
 }
 
+async function lockCart(tx: Prisma.TransactionClient, userId: string) {
+  // Match checkout's lock order: cart first, then cart lines and inventory.
+  await tx.$queryRaw`
+    SELECT "id" FROM "Cart" WHERE "userId" = ${userId} FOR UPDATE
+  `;
+}
+
 async function getVariantForCart(tx: Prisma.TransactionClient, variantId: string) {
   const variant = await tx.productVariant.findUnique({
     where: { id: variantId },
@@ -107,8 +114,9 @@ export async function addItem(userId: string, payload: CartItemPayload) {
   const quantity = requirePositiveQuantity(payload.quantity);
 
   return prisma.$transaction(async (tx) => {
-    const variant = await getVariantForCart(tx, payload.variantId);
     const cart = await tx.cart.upsert({ where: { userId }, update: {}, create: { userId } });
+    await lockCart(tx, userId);
+    const variant = await getVariantForCart(tx, payload.variantId);
     const existing = await tx.cartItem.findUnique({
       where: { cartId_variantId: { cartId: cart.id, variantId: variant.id } },
     });
@@ -142,6 +150,7 @@ export async function updateItem(userId: string, variantId: string, rawQuantity:
   const quantity = requirePositiveQuantity(rawQuantity);
 
   return prisma.$transaction(async (tx) => {
+    await lockCart(tx, userId);
     const variant = await getVariantForCart(tx, variantId);
     const cart = await tx.cart.findUnique({ where: { userId } });
     if (!cart) throw new ApiError("Cart item not found", 404);
@@ -160,6 +169,7 @@ export async function updateItem(userId: string, variantId: string, rawQuantity:
 
 export async function removeItem(userId: string, variantId: string) {
   return prisma.$transaction(async (tx) => {
+    await lockCart(tx, userId);
     const cart = await tx.cart.findUnique({ where: { userId } });
     if (!cart) throw new ApiError("Cart item not found", 404);
 
@@ -174,6 +184,7 @@ export async function removeItem(userId: string, variantId: string) {
 
 export async function clearCart(userId: string) {
   return prisma.$transaction(async (tx) => {
+    await lockCart(tx, userId);
     const cart = await tx.cart.findUnique({ where: { userId } });
     if (cart) await tx.cartItem.deleteMany({ where: { cartId: cart.id } });
     return fetchCart(tx, userId);
@@ -185,6 +196,7 @@ export async function mergeItems(userId: string, items: Array<{ variantId?: unkn
 
   const cart = await prisma.$transaction(async (tx) => {
     const cart = await tx.cart.upsert({ where: { userId }, update: {}, create: { userId } });
+    await lockCart(tx, userId);
 
     for (const item of items) {
       const quantity = Number(item.quantity);

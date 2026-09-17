@@ -66,6 +66,17 @@ async function loadApplication(client) {
     plugins: [{
       name: 'isolated-test-boundaries',
       setup(build) {
+        // Phase 5 exercises order/cart transactions independently of payment orchestration.
+        build.onResolve({ filter: /^@\/lib\/payments\/prepare-order-payment$/ }, () => ({
+          path: 'payment', namespace: 'phase5-payment',
+        }));
+        build.onLoad({ filter: /.*/, namespace: 'phase5-payment' }, () => ({
+          contents: `export class PaymentPreparationError extends Error {}
+            export function getPaymentReturnUrls() { return {}; }
+            export async function prepareOrderPayment(_userId, orderId) {
+              return { provider: 'YOCO', redirectUrl: 'https://c.yoco.com/test/' + orderId };
+            }`,
+        }));
         build.onResolve({ filter: /^@\/lib\/(prisma|auth\/require-user)$/ }, (args) => ({
           path: args.path, namespace: 'test-boundary',
         }));

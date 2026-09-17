@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
 import { formatRand } from "@/lib/money";
@@ -29,8 +29,22 @@ type CheckoutOrder = {
 type CheckoutResponse = {
   ok?: boolean;
   order?: CheckoutOrder;
+  payment?: { provider: "YOCO"; redirectUrl: string };
   message?: string;
 };
+
+function subscribeToCheckoutStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
+
+function hasStoredCheckout() {
+  try {
+    return Boolean(window.sessionStorage.getItem(CHECKOUT_IDEMPOTENCY_KEY));
+  } catch {
+    return false;
+  }
+}
 
 function formValue(formData: FormData, name: string) {
   return String(formData.get(name) ?? "").trim();
@@ -67,8 +81,12 @@ export function CheckoutPreview() {
     "delivery" | "pickup"
   >("delivery");
 
-  const [order, setOrder] =
-    useState<CheckoutOrder | null>(null);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const hasPendingCheckout = useSyncExternalStore(
+    subscribeToCheckoutStorage,
+    hasStoredCheckout,
+    () => false,
+  );
 
   const [isSubmitting, setIsSubmitting] =
     useState(false);
@@ -95,7 +113,7 @@ export function CheckoutPreview() {
 
     const formData = new FormData(event.currentTarget);
 
-    if (items.length === 0 || isSubmitting) {
+    if (isSubmitting) {
       return;
     }
 
@@ -114,10 +132,10 @@ export function CheckoutPreview() {
 
       /**
        * The pending operations may have failed and the
-       * cart may have been reconciled. Make sure there
-       * is still something to check out.
+       * cart may have been reconciled. A saved checkout
+       * key can still resume an already committed order.
        */
-      if (items.length === 0) {
+      if (items.length === 0 && !hasStoredCheckout()) {
         setSubmitError(
           "Your cart is empty. Please add an item before checking out.",
         );
@@ -129,9 +147,9 @@ export function CheckoutPreview() {
         "phone",
       );
 
+      const idempotencyKey = getCheckoutIdempotencyKey();
       const requestBody = {
-        idempotencyKey:
-          getCheckoutIdempotencyKey(),
+        idempotencyKey,
         fulfilmentType:
           fulfilment === "delivery"
             ? ("DELIVERY" as const)
@@ -207,11 +225,31 @@ export function CheckoutPreview() {
         );
       }
 
-      setOrder(responseBody.order);
+      const redirectUrl = responseBody.payment?.redirectUrl;
+      let validRedirect = false;
+      if (responseBody.payment?.provider === "YOCO" && typeof redirectUrl === "string") {
+        try {
+          const url = new URL(redirectUrl);
+          validRedirect = url.protocol === "https:" && !url.username && !url.password;
+        } catch {
+          validRedirect = false;
+        }
+      }
+      if (!validRedirect || !redirectUrl) {
+        throw new Error("We couldn't start the payment session. Please try again.");
+      }
+
       clearCartLocally();
       window.sessionStorage.removeItem(
         CHECKOUT_IDEMPOTENCY_KEY,
       );
+      try {
+        window.location.assign(redirectUrl);
+      } catch {
+        window.sessionStorage.setItem(CHECKOUT_IDEMPOTENCY_KEY, idempotencyKey);
+        throw new Error("We couldn't open the payment page. Please try again.");
+      }
+      setIsRedirecting(true);
     } catch (error) {
       setSubmitError(
         error instanceof Error
@@ -223,35 +261,15 @@ export function CheckoutPreview() {
     }
   };
 
-  if (order) {
+  if (isRedirecting) {
     return (
       <main className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center px-4 py-20 text-center sm:px-6 lg:px-8">
-        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-100 text-2xl text-emerald-600">
-          &#10003;
-        </span>
-
         <h1 className="mt-6 text-3xl font-bold text-gray-900">
-          Order received
+          Opening secure payment...
         </h1>
-
-        <p className="mt-3 text-sm text-gray-600">
-          Reference{" "}
-          <span className="font-semibold text-gray-900">
-            {order.orderNumber}
-          </span>
-        </p>
-
         <p className="mt-6 max-w-md text-sm leading-7 text-gray-600">
-          Your order has been created successfully. Payment is currently pending.
-          We&apos;ll provide payment instructions before your order is processed.
+          Taking you to Yoco to complete your payment.
         </p>
-
-        <Link
-          href="/"
-          className="mt-8 inline-flex items-center justify-center rounded-full bg-black px-7 py-3.5 text-sm font-medium text-white transition hover:bg-neutral-800"
-        >
-          Back to home
-        </Link>
       </main>
     );
   }
@@ -430,9 +448,8 @@ export function CheckoutPreview() {
               </h3>
 
               <p className="mt-2 text-sm leading-6 text-gray-600">
-                After you place your order we&apos;ll
-                send a secure Yoco payment request to
-                your email to complete the transaction.
+                After you place your order, you&apos;ll be taken to Yoco
+                to complete your payment securely.
               </p>
             </div>
           </div>
@@ -446,11 +463,13 @@ export function CheckoutPreview() {
           {items.length === 0 ? (
             <div className="mt-4 rounded-lg border border-dashed border-gray-300 p-6">
               <p className="text-base font-semibold text-gray-900">
-                Your cart is empty.
+                {hasPendingCheckout ? "Resume your checkout" : "Your cart is empty."}
               </p>
 
               <p className="mt-2 text-sm leading-6 text-gray-600">
-                Add a product before checking out.
+                {hasPendingCheckout
+                  ? "Enter your checkout details again to retry the pending payment session."
+                  : "Add a product before checking out."}
               </p>
 
               <Link
@@ -542,7 +561,7 @@ export function CheckoutPreview() {
             type="submit"
             className="mt-6 inline-flex w-full items-center justify-center rounded-full bg-black px-6 py-3.5 text-sm font-medium text-white transition hover:bg-neutral-800 disabled:cursor-not-allowed disabled:bg-gray-300"
             disabled={
-              items.length === 0 ||
+              (items.length === 0 && !hasPendingCheckout) ||
               isSubmitting
             }
           >

@@ -260,6 +260,19 @@ test("cancel and failure still render authoritative paid state", () => {
   }
 });
 
+test("authoritative expired state never renders payment confirmation", () => {
+  const expired = snapshot({
+    orderStatus: "CANCELLED",
+    orderPaymentStatus: "FAILED",
+    paymentStatus: "FAILED",
+  });
+  for (const kind of ["success", "cancel", "failure"]) {
+    const html = render({ kind, snapshot: expired });
+    assert.match(html, /We couldn&#x27;t verify the current payment state/);
+    assert.doesNotMatch(html, /Payment confirmed|Payment successful|Order paid/);
+  }
+});
+
 test("missing, malformed and inaccessible orders use the same generic UI", () => {
   for (const orderId of [null, "", "short", "<script>", "a".repeat(129)]) {
     assert.equal(isValidPaymentReturnOrderId(orderId), false);

@@ -132,12 +132,12 @@ async function fixture() {
     customerEmail: user.email, shippingAddressLine1: "TEST address", shippingCity: "TEST city",
     shippingProvince: "Limpopo", shippingPostalCode: "0000", shippingCountry: "South Africa",
     total: "1.00", amount: "1.00", paymentStatus: "PAID", status: "CONFIRMED",
-    successUrl: "https://untrusted.example", userId: "untrusted",
+    successUrl: "https://untrusted.example", orderId: "untrusted-order-id", userId: "untrusted",
   };
   return { user, cart, variant, body };
 }
 
-function providerSpy(overrides) {
+function providerSpy(overrides, { checkLocks = true } = {}) {
   const calls = [];
   const provider = async (input) => {
     calls.push(input);
@@ -145,9 +145,11 @@ function providerSpy(overrides) {
     assert.ok(order.payment, "Payment must already be committed and visible on another connection");
     assert.ok(input.amount instanceof Prisma.Decimal);
     assert.ok(input.amount.equals(order.total));
-    // NOWAIT proves cart/order locks are released while the external call runs.
-    await observer.query('SELECT "id" FROM "Cart" WHERE "userId" = $1 FOR UPDATE NOWAIT', [order.userId]);
-    await observer.query('SELECT "id" FROM "Order" WHERE "id" = $1 FOR UPDATE NOWAIT', [order.id]);
+    if (checkLocks) {
+      // NOWAIT proves this boundary runs after the requesting checkout transaction commits.
+      await observer.query('SELECT "id" FROM "Cart" WHERE "userId" = $1 FOR UPDATE NOWAIT', [order.userId]);
+      await observer.query('SELECT "id" FROM "Order" WHERE "id" = $1 FOR UPDATE NOWAIT', [order.id]);
+    }
     assert.equal(input.idempotencyKey, `deigon-yoco-${order.id}`);
     assert.deepEqual(input.metadata, { orderNumber: order.orderNumber });
     if (overrides) return overrides(input);
@@ -194,9 +196,10 @@ test("new checkout commits once before Yoco, uses authoritative totals and retur
   const order = await state(f);
   assert.equal(order.payment.providerCheckoutId, `checkout_${order.id}`);
   assert.equal(spy.calls[0].amount.toFixed(2), "480.50");
-  assert.equal(spy.calls[0].successUrl, "https://shop.example/checkout/payment/success");
-  assert.equal(spy.calls[0].cancelUrl, "https://shop.example/checkout/payment/cancel");
-  assert.equal(spy.calls[0].failureUrl, "https://shop.example/checkout/payment/failure");
+  assert.equal(spy.calls[0].successUrl, `https://shop.example/checkout/payment/success?orderId=${order.id}`);
+  assert.equal(spy.calls[0].cancelUrl, `https://shop.example/checkout/payment/cancel?orderId=${order.id}`);
+  assert.equal(spy.calls[0].failureUrl, `https://shop.example/checkout/payment/failure?orderId=${order.id}`);
+  assert.ok(!spy.calls[0].successUrl.includes(f.body.orderId));
   assert.deepEqual(result.body.payment, { provider: "YOCO", redirectUrl: `https://c.yoco.com/${order.id}` });
   assert.equal(result.body.order.total, "480.50");
   assert.deepEqual(Object.keys(result.body).sort(), ["ok", "order", "payment"]);
@@ -213,6 +216,9 @@ test("provider failure preserves committed pending records; same application key
   assert.equal(result.status, 201);
   assert.equal(result.body.order.id, before.id);
   assert.equal(failed.calls[0].idempotencyKey, recovered.calls[0].idempotencyKey);
+  assert.equal(failed.calls[0].successUrl, recovered.calls[0].successUrl);
+  assert.equal(failed.calls[0].cancelUrl, recovered.calls[0].cancelUrl);
+  assert.equal(failed.calls[0].failureUrl, recovered.calls[0].failureUrl);
   assert.equal((await state(f)).payment.providerCheckoutId, `checkout_${before.id}`);
 });
 
@@ -232,7 +238,7 @@ for (const stage of ["before", "after"]) {
 
 test("concurrent same-key route requests share one order, payment and hosted checkout ID", async () => {
   const f = await fixture();
-  const spy = providerSpy();
+  const spy = providerSpy(undefined, { checkLocks: false });
   const results = await Promise.all(Array.from({ length: 4 }, () => post(f, spy.provider)));
   assert.ok(results.every((result) => result.status === 201));
   assert.equal(new Set(results.map((result) => result.body.order.id)).size, 1);
@@ -250,7 +256,7 @@ test("racing different provider IDs cannot overwrite each other", async () => {
     if (arrived === 2) release();
     await gate;
     return { checkoutId: `conflict_${index}`, redirectUrl: `https://c.yoco.com/conflict_${index}` };
-  });
+  }, { checkLocks: false });
   const results = await Promise.all([post(f, spy.provider), post(f, spy.provider)]);
   assert.deepEqual(results.map((result) => result.status).sort(), [201, 503]);
   expectFailure(results.find((result) => result.status === 503));
@@ -285,18 +291,22 @@ test("canonical origin is required and validated before creating any order", asy
   try {
     process.env.NODE_ENV = "development";
     process.env.APP_URL = "http://localhost:3000";
-    assert.equal(app.getPaymentReturnUrls().successUrl, "http://localhost:3000/checkout/payment/success");
+    const localOrigin = app.getPaymentReturnOrigin();
+    assert.equal(
+      app.getPaymentReturnUrls(localOrigin, "order_server_test").successUrl,
+      "http://localhost:3000/checkout/payment/success?orderId=order_server_test",
+    );
     process.env.NODE_ENV = "production";
-    assert.throws(() => app.getPaymentReturnUrls(), app.PaymentPreparationError);
+    assert.throws(() => app.getPaymentReturnOrigin(), app.PaymentPreparationError);
   } finally {
     if (originalMode === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = originalMode;
   }
   delete process.env.APP_URL;
   process.env.NEXT_PUBLIC_SITE_URL = "https://fallback.example";
-  assert.equal(app.getPaymentReturnUrls().successUrl, "https://fallback.example/checkout/payment/success");
+  assert.equal(app.getPaymentReturnOrigin(), "https://fallback.example");
   process.env.APP_URL = "https://preferred.example";
-  assert.equal(app.getPaymentReturnUrls().successUrl, "https://preferred.example/checkout/payment/success");
+  assert.equal(app.getPaymentReturnOrigin(), "https://preferred.example");
 });
 
 test("unauthenticated and cross-user replays cannot prepare another user's payment", async () => {

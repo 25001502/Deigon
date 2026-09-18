@@ -72,6 +72,7 @@ async function loadApplication(client) {
         }));
         build.onLoad({ filter: /.*/, namespace: 'phase5-payment' }, () => ({
           contents: `export class PaymentPreparationError extends Error {}
+            export function getPaymentReturnOrigin() { return 'https://shop.example'; }
             export function getPaymentReturnUrls() { return {}; }
             export async function prepareOrderPayment(_userId, orderId) {
               return { provider: 'YOCO', redirectUrl: 'https://c.yoco.com/test/' + orderId };

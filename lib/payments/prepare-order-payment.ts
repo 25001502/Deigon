@@ -10,7 +10,7 @@ export class PaymentPreparationError extends Error {
   }
 }
 
-export function getPaymentReturnUrls() {
+export function getPaymentReturnOrigin() {
   try {
     // Prefer the server origin, with the existing storefront setting as a fallback.
     // Never derive payment return URLs from request headers or form input.
@@ -26,10 +26,26 @@ export function getPaymentReturnUrls() {
     ) {
       throw new PaymentPreparationError();
     }
+    return url.origin;
+  } catch {
+    throw new PaymentPreparationError();
+  }
+}
+
+export function getPaymentReturnUrls(origin: string, orderId: string) {
+  try {
+    if (!orderId.trim()) throw new PaymentPreparationError();
+
+    const buildUrl = (pathname: string) => {
+      const url = new URL(pathname, origin);
+      url.searchParams.set("orderId", orderId);
+      return url.href;
+    };
+
     return {
-      successUrl: new URL("/checkout/payment/success", url.origin).href,
-      cancelUrl: new URL("/checkout/payment/cancel", url.origin).href,
-      failureUrl: new URL("/checkout/payment/failure", url.origin).href,
+      successUrl: buildUrl("/checkout/payment/success"),
+      cancelUrl: buildUrl("/checkout/payment/cancel"),
+      failureUrl: buildUrl("/checkout/payment/failure"),
     };
   } catch {
     throw new PaymentPreparationError();

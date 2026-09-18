@@ -19,9 +19,7 @@ let view;
 const bundle = await build({
   stdin: {
     contents: `export { CheckoutPreview } from './components/checkout/checkout-preview';
-      export { default as Success } from './app/checkout/payment/success/page';
-      export { default as Cancel } from './app/checkout/payment/cancel/page';
-      export { default as Failure } from './app/checkout/payment/failure/page';`,
+      export { PaymentStatusView } from './components/checkout/payment-return-status';`,
     resolveDir: root, sourcefile: "phase6b-frontend.tsx", loader: "tsx",
   },
   bundle: true, write: false, platform: "node", format: "cjs", packages: "external",
@@ -29,6 +27,7 @@ const bundle = await build({
     builder.onResolve({ filter: /^(react|next\/link|@\/components\/cart\/cart-provider)$/ }, ({ path }) => ({ path, namespace: "test-ui" }));
     builder.onLoad({ filter: /.*/, namespace: "test-ui" }, ({ path }) => ({ contents:
       path === "react" ? `export const useMemo = fn => fn();
+        export const useEffect = () => {};
         export const useState = initial => globalThis.__checkoutView.useState(initial);
         export const useSyncExternalStore = (_subscribe, snapshot) => snapshot();`
         : path === "next/link" ? "export default function Link() { return null; }"
@@ -40,7 +39,7 @@ const loaded = new Module(path.join(root, "phase6b-frontend.cjs"));
 loaded.filename = path.join(root, "phase6b-frontend.cjs");
 loaded.paths = Module._nodeModulePaths(root);
 loaded._compile(bundle.outputFiles[0].text, loaded.filename);
-const { CheckoutPreview, Success, Cancel, Failure } = loaded.exports;
+const { CheckoutPreview, PaymentStatusView } = loaded.exports;
 
 beforeEach(() => {
   const values = [], storage = new Map(), events = [];
@@ -178,10 +177,17 @@ test("a browser navigation error restores the key and allows retry even after lo
   assert.equal(find(render(), (node) => node.type === "button" && node.props.type === "submit").props.disabled, false);
 });
 
-test("return pages render cautious wording without claiming paid or confirmed status", () => {
-  for (const Page of [Success, Cancel, Failure]) {
-    const html = renderToStaticMarkup(createElement(Page));
+test("pending return views use cautious wording without claiming paid or confirmed status", () => {
+  const snapshot = {
+    order: {
+      id: "order_test", orderNumber: "DGN-TEST", status: "PENDING",
+      paymentStatus: "PENDING", fulfilmentType: "DELIVERY", total: "480.50", confirmedAt: null,
+    },
+    payment: { provider: "YOCO", status: "PENDING" },
+  };
+  for (const kind of ["success", "cancel", "failure"]) {
+    const html = renderToStaticMarkup(createElement(PaymentStatusView, { kind, snapshot }));
     assert.doesNotMatch(html, /Payment successful|Order paid|Payment confirmed/i);
-    assert.match(html, /not yet been confirmed|does not confirm|not confirmed/);
+    assert.match(html, /confirming your payment|not been confirmed/);
   }
 });

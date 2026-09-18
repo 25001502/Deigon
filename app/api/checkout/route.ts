@@ -7,6 +7,7 @@ import {
   type CreateOrderInput,
 } from "@/lib/checkout/service";
 import {
+  getPaymentReturnOrigin,
   getPaymentReturnUrls,
   PaymentPreparationError,
   prepareOrderPayment,
@@ -29,9 +30,10 @@ export async function POST(request: NextRequest) {
     });
 
     const input = parseCheckoutBody(body);
-    const returnUrls = getPaymentReturnUrls();
+    const returnOrigin = getPaymentReturnOrigin();
 
     const order = await createOrder(user.id, input);
+    const returnUrls = getPaymentReturnUrls(returnOrigin, order.id);
     const payment = await prepareOrderPayment(user.id, order.id, returnUrls);
 
     return NextResponse.json(

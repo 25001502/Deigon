@@ -1,9 +1,11 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
+import { safeCallbackPath } from "@/lib/auth/safe-callback-path";
+
 export async function GET(request: NextRequest) {
   const code = request.nextUrl.searchParams.get("code");
-  const next = request.nextUrl.searchParams.get("next") ?? "/account";
+  const next = safeCallbackPath(request.nextUrl.searchParams.get("next"));
   const redirectUrl = new URL(next, request.url);
   const response = NextResponse.redirect(redirectUrl);
 

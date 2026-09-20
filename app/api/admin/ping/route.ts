@@ -1,17 +1,21 @@
 import { NextResponse } from "next/server";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
-import { AuthError } from "@/lib/auth/require-user";
+import { errorResponse } from "@/lib/api/errors";
+
+export const dynamic = "force-dynamic";
+
+function noStore(response: NextResponse) {
+  response.headers.set("Cache-Control", "private, no-store, max-age=0");
+  return response;
+}
 
 // Demonstrates the authorization layer: no session -> 401, CUSTOMER -> 403, ADMIN -> 200.
 export async function GET() {
   try {
     const admin = await requireAdmin();
-    return NextResponse.json({ ok: true, message: "Admin access granted", adminId: admin.id });
+    return noStore(NextResponse.json({ ok: true, message: "Admin access granted", adminId: admin.id }));
   } catch (error) {
-    if (error instanceof AuthError) {
-      return NextResponse.json({ ok: false, message: error.message }, { status: error.status });
-    }
-    throw error;
+    return noStore(errorResponse(error));
   }
 }

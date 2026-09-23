@@ -201,6 +201,11 @@ model Order {
   pickupLocation      String?
 
   confirmedAt        DateTime?
+  processingAt          DateTime? @db.Timestamp(3)
+  shippedAt             DateTime? @db.Timestamp(3)
+  readyForPickupAt      DateTime? @db.Timestamp(3)
+  deliveredAt           DateTime? @db.Timestamp(3)
+  estimatedDeliveryDate DateTime? @db.Date
   cancelledAt        DateTime?
   cancelReason       String?
   inventoryReleasedAt DateTime?

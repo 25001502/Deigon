@@ -174,12 +174,16 @@ test("profile PATCH ignores attempted role/UUID/email escalation", async () => {
   assert.equal((await response.json()).profile.role, "CUSTOMER");
 });
 
-test("authorized placeholder pages have no mutations or invented business metrics", async () => {
+test("authorized admin pages expose only implemented tools and no invented business metrics", async () => {
   state.role = "ADMIN";
-  for (const key of protectedPages) {
+  for (const key of ["dashboard", "products", "inventory"]) {
     const page = renderToStaticMarkup(await app[key]());
     assert.match(page, /future update|Coming soon/);
     assert.doesNotMatch(page, /<form|<button|<input|mark.*paid|revenue|R\s*\d/i);
   }
+  const orders = renderToStaticMarkup(await app.orders());
+  assert.match(orders, /Order management/);
+  assert.match(orders, /Search orders/);
+  assert.doesNotMatch(orders, /mark.*paid|revenue|providerCheckoutId|transactionId|idempotencyKey/i);
   assert.equal(state.writes.length, 0);
 });

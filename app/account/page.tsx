@@ -25,6 +25,7 @@ export default async function AccountPage() {
         id: true,
         orderNumber: true,
         status: true,
+        fulfilmentType: true,
         total: true,
         createdAt: true,
       },

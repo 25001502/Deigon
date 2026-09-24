@@ -17,6 +17,7 @@ import {
   UserRound,
   type LucideIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -46,6 +47,7 @@ type Order = {
   id: string;
   orderNumber: string;
   status: string;
+  fulfilmentType: "DELIVERY" | "PICKUP";
   total: string;
   createdAt: Date;
 };
@@ -123,7 +125,10 @@ function getInitials(name: string | null, email: string) {
     .join("");
 }
 
-function readableStatus(status: string) {
+function readableStatus(status: string, fulfilmentType: Order["fulfilmentType"]) {
+  if (status === "READY_FOR_PICKUP") return "Ready for collection";
+  if (status === "SHIPPED") return "Out for delivery";
+  if (status === "DELIVERED" && fulfilmentType === "PICKUP") return "Collected";
   return status.replaceAll("_", " ").toLowerCase().replace(/^\w/, (letter) => letter.toUpperCase());
 }
 
@@ -582,9 +587,12 @@ export function AccountDashboard({
                           <div className="mt-1.5 flex flex-wrap items-center gap-2">
                             <span className="text-[11px] text-gray-500">{orderDateFormatter.format(new Date(order.createdAt))}</span>
                             <span className={`inline-flex rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase ring-1 ring-inset ${statusClassName(order.status)}`}>
-                              {readableStatus(order.status)}
+                              {readableStatus(order.status, order.fulfilmentType)}
                             </span>
                           </div>
+                          <Link href={`/account/orders/${encodeURIComponent(order.id)}`} className="mt-2 inline-flex text-[11px] font-semibold text-black underline decoration-gray-300 underline-offset-4">
+                            View details
+                          </Link>
                         </div>
                         <p className="shrink-0 text-sm font-semibold text-gray-950">R {order.total}</p>
                       </article>
@@ -803,22 +811,32 @@ export function AccountDashboard({
                             <th className="pb-3 pr-4 font-semibold">Order number</th>
                             <th className="pb-3 pr-4 font-semibold">Date</th>
                             <th className="pb-3 pr-4 font-semibold">Status</th>
-                            <th className="pb-3 text-right font-semibold">Total</th>
+                            <th className="pb-3 pr-4 text-right font-semibold">Total</th>
+                            <th className="pb-3 text-right font-semibold">Action</th>
                           </tr>
                         </thead>
                         <tbody>
                           {orders.map((order) => (
                             <tr key={order.id} className="border-b border-gray-100 last:border-0">
-                              <td className="py-3 pr-4 font-medium text-gray-950">{order.orderNumber}</td>
+                              <td className="py-3 pr-4 font-medium text-gray-950">
+                                <Link href={`/account/orders/${encodeURIComponent(order.id)}`} className="underline decoration-gray-300 underline-offset-4 hover:decoration-black">
+                                  {order.orderNumber}
+                                </Link>
+                              </td>
                               <td className="py-3 pr-4 whitespace-nowrap text-gray-500">
                                 {orderDateFormatter.format(new Date(order.createdAt))}
                               </td>
                               <td className="py-3 pr-4">
                                 <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ring-inset ${statusClassName(order.status)}`}>
-                                  {readableStatus(order.status)}
+                                  {readableStatus(order.status, order.fulfilmentType)}
                                 </span>
                               </td>
-                              <td className="py-3 text-right font-medium text-gray-950">R {order.total}</td>
+                              <td className="py-3 pr-4 text-right font-medium text-gray-950">R {order.total}</td>
+                              <td className="py-3 text-right">
+                                <Link href={`/account/orders/${encodeURIComponent(order.id)}`} className="font-semibold text-black underline decoration-gray-300 underline-offset-4 hover:decoration-black">
+                                  View
+                                </Link>
+                              </td>
                             </tr>
                           ))}
                         </tbody>
@@ -836,12 +854,13 @@ export function AccountDashboard({
                               </p>
                             </div>
                             <span className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold ring-1 ring-inset ${statusClassName(order.status)}`}>
-                              {readableStatus(order.status)}
+                              {readableStatus(order.status, order.fulfilmentType)}
                             </span>
                           </div>
-                          <p className="mt-4 border-t border-gray-100 pt-3 text-sm font-semibold text-gray-950">
-                            R {order.total}
-                          </p>
+                          <div className="mt-4 flex items-center justify-between gap-3 border-t border-gray-100 pt-3">
+                            <p className="text-sm font-semibold text-gray-950">R {order.total}</p>
+                            <Link href={`/account/orders/${encodeURIComponent(order.id)}`} className="text-xs font-semibold text-black underline decoration-gray-300 underline-offset-4">View details</Link>
+                          </div>
                         </article>
                       ))}
                     </div>

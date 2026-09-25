@@ -39,8 +39,9 @@ export async function database() {
   try {
     await pool.query('CREATE SCHEMA auth; CREATE TABLE auth.users (id TEXT, email TEXT, raw_user_meta_data JSONB)');
     const migrations = readdirSync(path.join(root, "prisma/migrations")).filter((name) => /^\d/.test(name)).sort();
-    assert.equal(migrations.at(-1), migration);
-    for (const name of migrations.slice(0, -1)) {
+    const migrationIndex = migrations.indexOf(migration);
+    assert.notEqual(migrationIndex, -1);
+    for (const name of migrations.slice(0, migrationIndex)) {
       await pool.query(readFileSync(path.join(root, "prisma/migrations", name, "migration.sql"), "utf8"));
     }
     // Seed with SQL because the regenerated client expects the five not-yet-added columns.
@@ -85,6 +86,10 @@ export async function database() {
     // Real constraints still reject invalid commerce records after migration.
     await assert.rejects(pool.query('UPDATE "Order" SET "userId"=$1 WHERE id=$2', ['missing-user', 'migration-pending']), { code: "23503" });
     await assert.rejects(pool.query('UPDATE "Order" SET "idempotencyKey"=$1 WHERE id=$2', ['migration-confirmed', 'migration-pending']), { code: "23505" });
+    // Later additive migrations are applied only after the B1 before/after assertions above.
+    for (const name of migrations.slice(migrationIndex + 1)) {
+      await pool.query(readFileSync(path.join(root, "prisma/migrations", name, "migration.sql"), "utf8"));
+    }
     return { db, pool, close, migrationVerified: true, url: `postgresql://adminb1@127.0.0.1:${port}/postgres?sslmode=disable` };
   } catch (error) { await close(); throw error; }
 }

@@ -176,11 +176,12 @@ test("profile PATCH ignores attempted role/UUID/email escalation", async () => {
 
 test("authorized admin pages expose only implemented tools and no invented business metrics", async () => {
   state.role = "ADMIN";
-  for (const key of ["dashboard", "inventory"]) {
-    const page = renderToStaticMarkup(await app[key]());
-    assert.match(page, /future update|Coming soon/);
-    assert.doesNotMatch(page, /<form|<button|<input|mark.*paid|revenue|R\s*\d/i);
-  }
+  const dashboard = renderToStaticMarkup(await app.dashboard());
+  assert.match(dashboard, /Coming soon/);
+  assert.doesNotMatch(dashboard, /<form|<button|<input|mark.*paid|revenue|R\s*\d/i);
+  const inventory = renderToStaticMarkup(await app.inventory());
+  assert.match(inventory, /Stock management|Product visibility|Stock state|Search/);
+  assert.doesNotMatch(inventory, /mark.*paid|revenue|provider|transaction|sale price|low stock/i);
   const products = renderToStaticMarkup(await app.products());
   assert.match(products, /Catalogue management/);
   assert.match(products, /Search|Visibility|Featured|Category|Create product/);

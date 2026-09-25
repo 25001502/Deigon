@@ -38,6 +38,14 @@ enum FulfilmentType {
   PICKUP
 }
 
+enum InventoryAdjustmentReason {
+  RESTOCK
+  CORRECTION
+  DAMAGE
+  RETURN
+  OTHER
+}
+
 model User {
   id        String   @id
   email     String   @unique
@@ -50,6 +58,7 @@ model User {
   addresses Address[]
   carts     Cart[]
   orders    Order[]
+  inventoryAdjustments InventoryAdjustment[] @relation("InventoryAdjustmentAdmin")
 }
 
 model Category {
@@ -112,6 +121,7 @@ model ProductVariant {
   product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   inventory Inventory?
+  inventoryAdjustments InventoryAdjustment[]
 
   cartItems  CartItem[]
   orderItems OrderItem[]
@@ -265,4 +275,30 @@ model Payment {
 
   orderId String @unique
   order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model InventoryAdjustment {
+  id             String                    @id @default(cuid())
+  idempotencyKey String                    @unique
+  quantityBefore Int
+  quantityDelta  Int
+  quantityAfter  Int
+  reason         InventoryAdjustmentReason
+  note           String?
+  productName    String
+  productSlug    String
+  sku            String
+  size           String?
+  color          String?
+  adminUserId    String?
+  adminEmail     String
+  createdAt      DateTime                  @default(now()) @db.Timestamp(3)
+
+  variantId String
+  variant   ProductVariant @relation(fields: [variantId], references: [id], onDelete: Restrict)
+
+  adminUser User? @relation("InventoryAdjustmentAdmin", fields: [adminUserId], references: [id], onDelete: SetNull)
+
+  @@index([variantId, createdAt(sort: Desc)])
+  @@index([adminUserId, createdAt(sort: Desc)])
 }

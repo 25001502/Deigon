@@ -2,6 +2,9 @@ import Link from "next/link";
 
 import { ProductCard } from "@/components/storefront/product-card";
 import { getProductsFromDb } from "@/lib/products/server";
+
+export const dynamic = "force-dynamic";
+
 export default async function Home() {
   let featuredProducts = [];
   let foxygeonProducts = [];
@@ -96,4 +99,3 @@ export default async function Home() {
     </main>
   );
 }
-

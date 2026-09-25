@@ -3,17 +3,11 @@ import "server-only";
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { serializeProduct } from "@/lib/api/serialize-product";
+import { publicProductInclude, serializeProduct } from "@/lib/api/serialize-product";
 import { normalizeProduct, type StorefrontProduct } from "@/lib/products";
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
-
-const productInclude = {
-  category: true,
-  images: true,
-  variants: { include: { inventory: true } },
-} satisfies Prisma.ProductInclude;
 
 type GetProductsOptions = {
   category?: string;
@@ -67,7 +61,7 @@ export async function getProductsFromDb(
 
   const products = await prisma.product.findMany({
     where,
-    include: productInclude,
+    include: publicProductInclude,
     orderBy: { createdAt: "desc" },
     skip: (page - 1) * pageSize,
     take: pageSize,
@@ -94,7 +88,7 @@ export async function getProductBySlugFromDb(
       slug,
       isActive: true,
     },
-    include: productInclude,
+    include: publicProductInclude,
   });
 
   if (!product) {

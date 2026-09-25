@@ -82,14 +82,20 @@ function themeClassFor(categorySlug: string) {
 
 export function normalizeProduct(product: ApiProduct): StorefrontProduct {
   const descriptionParts = (product.description ?? "").split("\n\n");
-  const images = product.images.sort((a, b) => a.position - b.position).map((image) => image.url);
+  const images = [...product.images].sort((a, b) => a.position - b.position).map((image) => image.url);
   const firstVariant = product.variants[0];
+  const displayPrice = product.variants.reduce(
+    (minimum, variant) => Math.min(minimum, variant.price),
+    firstVariant?.price ?? 0,
+  );
 
   return {
     handle: product.slug,
     title: product.name,
     vendor: product.category.name,
-    price: firstVariant?.price ?? 0,
+    // Cards and unselected purchase panels show the lowest normal variant price.
+    // Once a variant is selected, ProductPurchasePanel displays that variant's price.
+    price: displayPrice,
     badge: product.badge ?? "",
     collectionHandle: product.category.slug,
     shortDescription: descriptionParts[0] ?? "",

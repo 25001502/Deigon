@@ -3,17 +3,13 @@ import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/api/errors";
-import { serializeProduct } from "@/lib/api/serialize-product";
+import { publicProductInclude, serializeProduct } from "@/lib/api/serialize-product";
 import { POST as adminPost } from "@/app/api/admin/products/route";
 
 const DEFAULT_PAGE_SIZE = 12;
 const MAX_PAGE_SIZE = 50;
 
-const productInclude = {
-  category: true,
-  images: true,
-  variants: { include: { inventory: true } },
-} satisfies Prisma.ProductInclude;
+export const dynamic = "force-dynamic";
 
 // Public: lists active products with pagination, name search, and category filtering.
 export async function GET(request: NextRequest) {
@@ -41,7 +37,7 @@ export async function GET(request: NextRequest) {
         prisma.product.count({ where }),
         prisma.product.findMany({
           where,
-          include: productInclude,
+          include: publicProductInclude,
           orderBy: { createdAt: "desc" },
           skip: (page - 1) * pageSize,
           take: pageSize,

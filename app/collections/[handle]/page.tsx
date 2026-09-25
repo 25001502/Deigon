@@ -6,6 +6,8 @@ import { getCollectionByHandle } from "@/lib/data/catalog";
 import { getProductsFromDb } from "@/lib/products/server";
 import type { StorefrontProduct } from "@/lib/products";
 
+export const dynamic = "force-dynamic";
+
 type CollectionPageProps = {
   params: Promise<{
     handle: string;

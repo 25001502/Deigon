@@ -1,9 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { errorResponse } from "@/lib/api/errors";
-import { serializeProduct } from "@/lib/api/serialize-product";
+import { publicProductInclude, serializeProduct } from "@/lib/api/serialize-product";
 import { DELETE as adminDelete, PATCH as adminPatch } from "@/app/api/admin/products/[productId]/route";
 
 // Next.js requires one dynamic segment name per route position, so GET (spec: /api/products/[slug])
@@ -11,11 +10,7 @@ import { DELETE as adminDelete, PATCH as adminPatch } from "@/app/api/admin/prod
 // as the product's slug; PATCH/DELETE treat it as the product's id, matching the task's two contracts.
 type RouteParams = { params: Promise<{ id: string }> };
 
-const productInclude = {
-  category: true,
-  images: true,
-  variants: { include: { inventory: true } },
-} satisfies Prisma.ProductInclude;
+export const dynamic = "force-dynamic";
 
 // Public: fetch one active product by slug (GET /api/products/[slug]).
 export async function GET(_request: Request, { params }: RouteParams) {
@@ -24,7 +19,7 @@ export async function GET(_request: Request, { params }: RouteParams) {
 
     const product = await prisma.product.findFirst({
       where: { slug, isActive: true },
-      include: productInclude,
+      include: publicProductInclude,
     });
 
     if (!product) {

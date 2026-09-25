@@ -8,6 +8,8 @@ import { ProductCard } from "@/components/storefront/product-card";
 import { getCollectionByHandle, storeInfo } from "@/lib/data/catalog";
 import { getProductsFromDb, getProductBySlugFromDb } from "@/lib/products/server";
 
+export const dynamic = "force-dynamic";
+
 type ProductPageProps = {
   params: Promise<{
     handle: string;

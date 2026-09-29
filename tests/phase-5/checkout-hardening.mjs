@@ -66,6 +66,10 @@ async function loadApplication(client) {
     plugins: [{
       name: 'isolated-test-boundaries',
       setup(build) {
+        build.onResolve({ filter: /^server-only$/ }, () => ({
+          path: 'server-only', namespace: 'phase5-empty',
+        }));
+        build.onLoad({ filter: /.*/, namespace: 'phase5-empty' }, () => ({ contents: '' }));
         // Phase 5 exercises order/cart transactions independently of payment orchestration.
         build.onResolve({ filter: /^@\/lib\/payments\/prepare-order-payment$/ }, () => ({
           path: 'payment', namespace: 'phase5-payment',

@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
-import { formatRand } from "@/lib/money";
 import type { StorefrontProduct } from "@/lib/products";
+
+import { currentPriceFor, ProductPrice } from "./product-price";
 
 type ProductPurchasePanelProps = {
   product: StorefrontProduct;
@@ -112,8 +113,7 @@ export function ProductPurchasePanel({
     ? Number.POSITIVE_INFINITY
     : selectedVariant?.inventory.quantity ?? 0;
 
-  const displayPrice =
-    selectedVariant?.price ?? product.price;
+  const displayPricing = currentPriceFor(product, selectedVariant);
 
   const validationMessage = missingColor
     ? "Select a color to continue."
@@ -157,7 +157,9 @@ export function ProductPurchasePanel({
           sku: selectedVariant?.sku,
           size: selectedVariant?.size,
           color: selectedVariant?.color,
-          price: displayPrice,
+          price: displayPricing.price,
+          normalPrice: displayPricing.normalPrice,
+          isOnSale: displayPricing.isOnSale,
         },
         quantity,
         {
@@ -200,9 +202,7 @@ export function ProductPurchasePanel({
   return (
     <div className="space-y-4">
       <div>
-        <p className="text-xl font-medium text-neutral-900">
-          {formatRand(displayPrice)}
-        </p>
+        <ProductPrice pricing={displayPricing} className="text-xl font-medium text-neutral-900" />
 
         <p className="mt-3 text-sm text-neutral-600">
           <Link

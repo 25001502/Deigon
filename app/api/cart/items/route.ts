@@ -12,7 +12,11 @@ export async function POST(request: NextRequest) {
     if (!Number.isInteger(body.quantity) || body.quantity <= 0) throw new ApiError("quantity must be a positive integer", 400);
 
     const cart = await addItem(user.id, { variantId: body.variantId, quantity: body.quantity });
-    return NextResponse.json({ ok: true, cart: serializeCart(cart) }, { status: 201 });
+    const pricingAt = new Date();
+    return NextResponse.json(
+      { ok: true, cart: serializeCart(cart, pricingAt) },
+      { status: 201, headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
   } catch (error) {
     return errorResponse(error);
   }

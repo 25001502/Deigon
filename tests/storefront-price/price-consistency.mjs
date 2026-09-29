@@ -169,8 +169,34 @@ test("storefront card price is the lowest normal variant price regardless of inc
     category: { id: "category-price", name: "Prices", slug: "prices" },
     images: [],
   };
-  const expensive = { id: "variant-expensive", sku: "EXPENSIVE", size: "L", color: "Black", price: 200, inventory: { quantity: 1, inStock: true } };
-  const affordable = { id: "variant-affordable", sku: "AFFORDABLE", size: "M", color: "Black", price: 100, inventory: { quantity: 1, inStock: true } };
+  const expensive = { id: "variant-expensive", sku: "EXPENSIVE", size: "L", color: "Black", price: 200, normalPrice: 200, isOnSale: false, inventory: { quantity: 1, inStock: true } };
+  const affordable = { id: "variant-affordable", sku: "AFFORDABLE", size: "M", color: "Black", price: 100, normalPrice: 100, isOnSale: false, inventory: { quantity: 1, inStock: true } };
   assert.equal(app.normalizeProduct({ ...base, variants: [expensive, affordable] }).price, 100);
   assert.equal(app.normalizeProduct({ ...base, variants: [affordable, expensive] }).price, 100);
+});
+
+test("active sale prices reach every public API without exposing their configuration", async () => {
+  const { product, variantB } = await fixture();
+  await db.productVariant.update({
+    where: { id: variantB.id },
+    data: {
+      salePrice: "75.95",
+      saleStartsAt: new Date("2020-01-01T00:00:00.000Z"),
+      saleEndsAt: new Date("2100-01-01T00:00:00.000Z"),
+    },
+  });
+
+  const views = await publicViews(product);
+  for (const view of Object.values(views)) {
+    const publicVariant = view.variants.find((variant) => variant.id === variantB.id);
+    assert.deepEqual(
+      { price: publicVariant.price, normalPrice: publicVariant.normalPrice, isOnSale: publicVariant.isOnSale },
+      { price: 75.95, normalPrice: 200, isOnSale: true },
+    );
+    assert.doesNotMatch(JSON.stringify(view), /salePrice|saleStartsAt|saleEndsAt|SCHEDULED|EXPIRED/);
+    assert.deepEqual(
+      (({ price, normalPrice, isOnSale }) => ({ price, normalPrice, isOnSale }))(app.normalizeProduct(view)),
+      { price: 75.95, normalPrice: 200, isOnSale: true },
+    );
+  }
 });

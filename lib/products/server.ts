@@ -13,6 +13,7 @@ type GetProductsOptions = {
   category?: string;
   search?: string;
   pageSize?: number;
+  pricingAt?: Date;
 };
 
 export async function getProductsFromDb(
@@ -27,6 +28,7 @@ export async function getProductsFromDb(
   };
 }> {
   const page = 1;
+  const pricingAt = options.pricingAt ?? new Date();
   const pageSize = Math.min(
     MAX_PAGE_SIZE,
     Math.max(1, Math.trunc(options.pageSize ?? DEFAULT_PAGE_SIZE)),
@@ -69,7 +71,7 @@ export async function getProductsFromDb(
 
   return {
     products: products
-      .map(serializeProduct)
+      .map((product) => serializeProduct(product, pricingAt))
       .map(normalizeProduct),
     pagination: {
       page,
@@ -82,6 +84,7 @@ export async function getProductsFromDb(
 
 export async function getProductBySlugFromDb(
   slug: string,
+  pricingAt = new Date(),
 ): Promise<StorefrontProduct | null> {
   const product = await prisma.product.findFirst({
     where: {
@@ -95,5 +98,5 @@ export async function getProductBySlugFromDb(
     return null;
   }
 
-  return normalizeProduct(serializeProduct(product));
+  return normalizeProduct(serializeProduct(product, pricingAt));
 }

@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/errors";
 import { Prisma } from "@prisma/client";
 
+import { resolveVariantPrice } from "@/lib/pricing/resolve-variant-price";
+
 const checkoutTransactionOptions = {
   maxWait: 15000,
   timeout: 15000,
@@ -263,6 +265,7 @@ async function getExistingOrder(
 async function createOrderAttempt(
   userId: string,
   input: ReturnType<typeof validateCheckoutInput>,
+  pricingNow: () => Date,
 ) {
   return prisma.$transaction(async (tx) => {
     // Cart mutations take this same lock before reading or changing cart lines.
@@ -300,6 +303,10 @@ async function createOrderAttempt(
       return serializeOrderResult(existing);
     }
 
+    // One checkout attempt uses one authoritative instant for every line.
+    // This is intentionally after both idempotency checks so a replay never reprices.
+    const pricingAt = pricingNow();
+
     /*
      * The cart is the authoritative source of what the customer is
      * attempting to purchase. Prices are re-read from ProductVariant.
@@ -322,6 +329,9 @@ async function createOrderAttempt(
                 size: true,
                 color: true,
                 price: true,
+                salePrice: true,
+                saleStartsAt: true,
+                saleEndsAt: true,
                 product: {
                   select: {
                     id: true,
@@ -392,12 +402,20 @@ async function createOrderAttempt(
      * Calculate the subtotal strictly from current database prices.
      * Prisma.Decimal avoids JavaScript floating-point arithmetic.
      */
-    let subtotal = ZERO;
+    const pricedLines = cart.items.map((item) => {
+      const pricing = resolveVariantPrice(item.variant, pricingAt);
+      const unitPrice = pricing.effectivePrice;
+      return {
+        item,
+        unitPrice,
+        lineTotal: unitPrice.mul(item.quantity),
+      };
+    });
 
-    for (const item of cart.items) {
-      const lineTotal = item.variant.price.mul(item.quantity);
-      subtotal = subtotal.add(lineTotal);
-    }
+    const subtotal = pricedLines.reduce(
+      (sum, line) => sum.add(line.lineTotal),
+      ZERO,
+    );
 
     let shippingFee = ZERO;
 
@@ -441,10 +459,10 @@ async function createOrderAttempt(
      * The order remains historically correct even if the product is later
      * renamed, repriced, or its images/variants change.
      */
-    const orderItems = cart.items.map((item) => ({
+    const orderItems = pricedLines.map(({ item, unitPrice, lineTotal }) => ({
       quantity: item.quantity,
-      unitPrice: item.variant.price,
-      lineTotal: item.variant.price.mul(item.quantity),
+      unitPrice,
+      lineTotal,
 
       title: item.variant.product.name,
       sku: item.variant.sku,
@@ -533,6 +551,7 @@ async function createOrderAttempt(
 export async function createOrder(
   userId: string,
   rawInput: CreateOrderInput,
+  pricingNow: () => Date = () => new Date(),
 ) {
   const input = validateCheckoutInput(rawInput);
 
@@ -556,7 +575,7 @@ export async function createOrder(
    */
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
-      return await createOrderAttempt(userId, input);
+      return await createOrderAttempt(userId, input, pricingNow);
     } catch (error) {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&

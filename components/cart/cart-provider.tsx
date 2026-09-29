@@ -11,7 +11,9 @@ import {
 } from "react";
 
 import { useAuth } from "@/components/auth/auth-provider";
+import { calculateDisplaySubtotal } from "@/components/cart/cart-money";
 import type { Product } from "@/lib/data/catalog";
+import type { ApiProduct } from "@/lib/products";
 
 type CartProduct = Pick<
   Product,
@@ -21,6 +23,8 @@ type CartProduct = Pick<
   sku?: string;
   size?: string | null;
   color?: string | null;
+  normalPrice: number;
+  isOnSale: boolean;
 };
 
 type CartLine = CartProduct & {
@@ -48,6 +52,8 @@ type ServerCart = {
       size?: string | null;
       color?: string | null;
       price: number;
+      normalPrice: number;
+      isOnSale: boolean;
     };
   }>;
   itemCount: number;
@@ -118,6 +124,55 @@ function readStoredCart() {
   }
 }
 
+type PublicProductResponse = {
+  ok?: boolean;
+  product?: ApiProduct;
+};
+
+export async function reconcileGuestCartLines(
+  storedItems: CartLine[],
+  fetchImpl: typeof fetch = fetch,
+): Promise<CartLine[]> {
+  const handles = [...new Set(storedItems.map((item) => item.handle).filter(Boolean))];
+  const refreshed = new Map<string, ApiProduct>();
+
+  await Promise.all(handles.map(async (handle) => {
+    try {
+      const response = await fetchImpl(`/api/products/${encodeURIComponent(handle)}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+      });
+      const body = (await response.json().catch(() => null)) as PublicProductResponse | null;
+      if (response.ok && body?.ok && body.product) refreshed.set(handle, body.product);
+    } catch {
+      // A guest line remains visible as a non-authoritative estimate when refresh fails.
+    }
+  }));
+
+  return storedItems.map((item) => {
+    const product = refreshed.get(item.handle);
+    const variant = product?.variants.find((candidate) => candidate.id === item.variantId);
+    if (!product || !variant) return item;
+
+    return {
+      ...item,
+      title: product.name,
+      vendor: product.category.name,
+      badge: product.badge ?? "",
+      image: [...product.images].sort((left, right) => left.position - right.position)[0]?.url,
+      sku: variant.sku,
+      size: variant.size,
+      color: variant.color,
+      price: variant.price,
+      normalPrice: variant.normalPrice,
+      isOnSale: variant.isOnSale,
+      themeClass: product.category.slug === "patron-fragrance"
+        ? "theme-collection-patron"
+        : "theme-collection-foxygeon",
+    };
+  });
+}
+
 function toCartLines(cart: ServerCart): CartLine[] {
   return cart.items.map((item) => ({
     variantId: item.variantId,
@@ -130,6 +185,8 @@ function toCartLines(cart: ServerCart): CartLine[] {
     badge: item.product.badge ?? "",
     image: item.product.images[0]?.url,
     price: item.variant.price,
+    normalPrice: item.variant.normalPrice,
+    isOnSale: item.variant.isOnSale,
     themeClass:
       item.product.collectionHandle === "patron-fragrance"
         ? "theme-collection-patron"
@@ -144,6 +201,7 @@ async function requestCart(
 ) {
   const response = await fetch(path, {
     ...init,
+    cache: "no-store",
     credentials: "include",
     headers: {
       "Content-Type": "application/json",
@@ -428,10 +486,17 @@ export function CartProvider({
        */
       if (!user) {
         mergedUserRef.current = null;
+        const guestItems = readStoredCart();
 
         if (mounted) {
           setIsAuthenticated(false);
-          commitItems(readStoredCart());
+          commitItems(guestItems);
+        }
+
+        const reconciledItems = await reconcileGuestCartLines(guestItems);
+
+        if (mounted) {
+          commitItems(reconciledItems);
           setIsHydrated(true);
         }
 
@@ -573,13 +638,7 @@ export function CartProvider({
 
   const value =
     useMemo<CartContextValue>(() => {
-      const subtotal = items.reduce(
-        (total, item) =>
-          total +
-          item.price *
-            item.quantity,
-        0,
-      );
+      const subtotal = calculateDisplaySubtotal(items);
 
       const itemCount = items.reduce(
         (count, item) =>

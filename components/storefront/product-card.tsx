@@ -4,11 +4,11 @@ import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
 
-import { formatRand } from "@/lib/money";
 import type { StorefrontProduct } from "@/lib/products";
 
 import { MockProductMedia } from "./mock-product-media";
 import { ProductQuickView } from "./product-quick-view";
+import { ProductPrice } from "./product-price";
 
 export function ProductCard({ product }: { product: StorefrontProduct }) {
   const [isQuickViewOpen, setIsQuickViewOpen] = useState(false);
@@ -51,10 +51,7 @@ export function ProductCard({ product }: { product: StorefrontProduct }) {
         <p className="mt-0.5 text-xs text-gray-500">
           <span className="font-medium">Vendor:</span> {product.vendor}
         </p>
-        <p className="mt-1 text-sm text-gray-900">
-          <span className="text-xs font-normal text-gray-500">Regular price </span>
-          {formatRand(product.price)}
-        </p>
+        <ProductPrice pricing={product} className="mt-1 text-sm text-gray-900" />
       </div>
       {isQuickViewOpen ? <ProductQuickView product={product} onClose={() => setIsQuickViewOpen(false)} /> : null}
     </article>

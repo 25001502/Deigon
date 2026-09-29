@@ -4,6 +4,12 @@ import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
+import {
+  addDisplayMoney,
+  calculateDisplayLineTotal,
+  calculateDisplayThresholdCharge,
+} from "@/components/cart/cart-money";
+import { ProductPrice } from "@/components/storefront/product-price";
 import { formatRand } from "@/lib/money";
 import { storeInfo } from "@/lib/data/catalog";
 
@@ -99,12 +105,14 @@ export function CheckoutPreview() {
       return 0;
     }
 
-    return subtotal >= FREE_DELIVERY_THRESHOLD
-      ? 0
-      : FLAT_DELIVERY_FEE;
+    return calculateDisplayThresholdCharge(
+      subtotal,
+      FREE_DELIVERY_THRESHOLD,
+      FLAT_DELIVERY_FEE,
+    );
   }, [fulfilment, subtotal]);
 
-  const total = subtotal + shipping;
+  const total = addDisplayMoney(subtotal, shipping);
 
   const handleSubmit = async (
     event: React.FormEvent<HTMLFormElement>,
@@ -511,12 +519,15 @@ export function CheckoutPreview() {
                       <p className="mt-0.5 text-xs text-gray-500">
                         Qty {item.quantity}
                       </p>
+                      <ProductPrice pricing={item} className="mt-1 text-xs text-gray-700" />
                     </div>
 
                     <span className="text-sm font-medium text-gray-900">
                       {formatRand(
-                        item.price *
+                        calculateDisplayLineTotal(
+                          item.price,
                           item.quantity,
+                        ),
                       )}
                     </span>
                   </div>

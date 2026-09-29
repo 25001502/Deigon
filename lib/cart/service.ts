@@ -1,6 +1,9 @@
 import { prisma } from "@/lib/prisma";
 import { ApiError } from "@/lib/api/errors";
 import type { Prisma } from "@prisma/client";
+import { Prisma as PrismaRuntime } from "@prisma/client";
+
+import { resolveVariantPrice } from "@/lib/pricing/resolve-variant-price";
 
 // Selects only the fields the cart API response (serializeCart) and frontend (CartProvider,
 // cart-page) actually consume. Replaces the previous deep `include` (which pulled every Product
@@ -36,6 +39,9 @@ const cartSelect = {
           size: true,
           color: true,
           price: true,
+          salePrice: true,
+          saleStartsAt: true,
+          saleEndsAt: true,
           inventory: { select: { quantity: true } },
         },
       },
@@ -234,13 +240,19 @@ export async function mergeItems(userId: string, items: Array<{ variantId?: unkn
   return { cart, results };
 }
 
-export function serializeCart(cart: CartWithItems) {
+export function serializeCart(cart: CartWithItems, pricingAt: Date) {
+  let subtotal = new PrismaRuntime.Decimal("0.00");
+
   const items = cart.items.map((item) => {
     const inventoryQuantity = item.variant.inventory?.quantity ?? 0;
+    const pricing = resolveVariantPrice(item.variant, pricingAt);
+    const lineTotal = pricing.effectivePrice.mul(item.quantity);
+    subtotal = subtotal.add(lineTotal);
+
     return {
       variantId: item.variantId,
       quantity: item.quantity,
-      lineTotal: Number(item.variant.price) * item.quantity,
+      lineTotal: Number(lineTotal),
       product: {
         id: item.product.id,
         slug: item.product.slug,
@@ -254,7 +266,9 @@ export function serializeCart(cart: CartWithItems) {
         id: item.variant.id,
         size: item.variant.size,
         color: item.variant.color,
-        price: Number(item.variant.price),
+        price: Number(pricing.effectivePrice),
+        normalPrice: Number(pricing.normalPrice),
+        isOnSale: pricing.isOnSale,
         inventory: { quantity: inventoryQuantity, inStock: inventoryQuantity > 0 },
       },
     };
@@ -263,6 +277,6 @@ export function serializeCart(cart: CartWithItems) {
   return {
     items,
     itemCount: items.reduce((sum, item) => sum + item.quantity, 0),
-    subtotal: items.reduce((sum, item) => sum + item.lineTotal, 0),
+    subtotal: Number(subtotal),
   };
 }

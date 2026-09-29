@@ -14,6 +14,7 @@ export const dynamic = "force-dynamic";
 // Public: lists active products with pagination, name search, and category filtering.
 export async function GET(request: NextRequest) {
   try {
+    const pricingAt = new Date();
     const { searchParams } = request.nextUrl;
 
     const page = Math.max(1, Number.parseInt(searchParams.get("page") ?? "1", 10) || 1);
@@ -48,11 +49,14 @@ export async function GET(request: NextRequest) {
       { timeout: 15000 },
     );
 
-    return NextResponse.json({
-      ok: true,
-      products: products.map(serializeProduct),
-      pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
-    });
+    return NextResponse.json(
+      {
+        ok: true,
+        products: products.map((product) => serializeProduct(product, pricingAt)),
+        pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+      },
+      { headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
   } catch (error) {
     return errorResponse(error);
   }

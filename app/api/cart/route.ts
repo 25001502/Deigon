@@ -7,7 +7,12 @@ import { clearCart, getCart, serializeCart } from "@/lib/cart/service";
 export async function GET() {
   try {
     const user = await requireUser();
-    return NextResponse.json({ ok: true, cart: serializeCart(await getCart(user.id)) });
+    const cart = await getCart(user.id);
+    const pricingAt = new Date();
+    return NextResponse.json(
+      { ok: true, cart: serializeCart(cart, pricingAt) },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
   } catch (error) {
     return errorResponse(error);
   }
@@ -16,7 +21,12 @@ export async function GET() {
 export async function DELETE(_request: NextRequest) {
   try {
     const user = await requireUser();
-    return NextResponse.json({ ok: true, cart: serializeCart(await clearCart(user.id)) });
+    const cart = await clearCart(user.id);
+    const pricingAt = new Date();
+    return NextResponse.json(
+      { ok: true, cart: serializeCart(cart, pricingAt) },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
   } catch (error) {
     return errorResponse(error);
   }

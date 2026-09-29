@@ -1,5 +1,7 @@
 import type { Prisma } from "@prisma/client";
 
+import { resolveVariantPrice } from "@/lib/pricing/resolve-variant-price";
+
 export const publicProductInclude = {
   category: true,
   images: true,
@@ -14,7 +16,7 @@ export type ProductWithRelations = Prisma.ProductGetPayload<{
 }>;
 
 // Shapes the DB record for API responses; nothing here exposes fields the storefront doesn't need.
-export function serializeProduct(product: ProductWithRelations) {
+export function serializeProduct(product: ProductWithRelations, pricingAt: Date) {
   return {
     id: product.id,
     slug: product.slug,
@@ -36,16 +38,23 @@ export function serializeProduct(product: ProductWithRelations) {
       .map((image) => ({ id: image.id, url: image.url, alt: image.alt, position: image.position })),
     variants: [...product.variants]
       .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime() || left.id.localeCompare(right.id))
-      .map((variant) => ({
-        id: variant.id,
-        sku: variant.sku,
-        size: variant.size,
-        color: variant.color,
-        price: Number(variant.price),
-        inventory: {
-          quantity: variant.inventory?.quantity ?? 0,
-          inStock: (variant.inventory?.quantity ?? 0) > 0,
-        },
-      })),
+      .map((variant) => {
+        const pricing = resolveVariantPrice(variant, pricingAt);
+
+        return {
+          id: variant.id,
+          sku: variant.sku,
+          size: variant.size,
+          color: variant.color,
+          // Public clients receive only pricing that is valid at pricingAt.
+          price: Number(pricing.effectivePrice),
+          normalPrice: Number(pricing.normalPrice),
+          isOnSale: pricing.isOnSale,
+          inventory: {
+            quantity: variant.inventory?.quantity ?? 0,
+            inStock: (variant.inventory?.quantity ?? 0) > 0,
+          },
+        };
+      }),
   };
 }

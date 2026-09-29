@@ -11,7 +11,11 @@ export async function POST(request: NextRequest) {
     if (!Array.isArray(body?.items)) throw new ApiError("items must be an array", 400);
 
     const result = await mergeItems(user.id, body.items);
-    return NextResponse.json({ ok: true, cart: serializeCart(result.cart), results: result.results });
+    const pricingAt = new Date();
+    return NextResponse.json(
+      { ok: true, cart: serializeCart(result.cart, pricingAt), results: result.results },
+      { headers: { "Cache-Control": "private, no-store, max-age=0" } },
+    );
   } catch (error) {
     return errorResponse(error);
   }

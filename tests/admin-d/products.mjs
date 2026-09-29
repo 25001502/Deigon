@@ -39,6 +39,19 @@ function updateInput(product, overrides = {}) {
   };
 }
 
+const sameMillisecondToken = new Date("2030-01-02T03:04:05.123Z");
+
+async function productAtSameMillisecondToken() {
+  const product = await app.createAdminProduct(productInput());
+  await db.product.update({ where: { id: product.id }, data: { updatedAt: sameMillisecondToken } });
+  return app.getAdminProduct(product.id);
+}
+
+async function withSameMillisecondClock(action) {
+  mock.timers.enable({ apis: ["Date"], now: sameMillisecondToken.getTime() });
+  try { return await action(); } finally { mock.timers.reset(); }
+}
+
 before(async () => {
   handle = await database(); db = handle.db;
   admin = await db.user.create({ data: { id: randomUUID(), email: "admin-d@example.invalid", role: "ADMIN" } });
@@ -137,12 +150,33 @@ test("stale product edits are rejected without overwriting newer data", async ()
   assert.equal((await app.getAdminProduct(product.id)).name, first.name);
 }));
 
+test("product edit advances the aggregate token when wall clock equals the old token", async () => asAdmin(async () => {
+  const product = await productAtSameMillisecondToken();
+  const updated = await withSameMillisecondClock(() => app.updateAdminProduct(
+    product.id,
+    updateInput(product, { name: "Same-millisecond product edit" }),
+  ));
+  assert.equal(updated.updatedAt, "2030-01-02T03:04:05.124Z");
+}));
+
 test("variant create initializes zero inventory and bumps product concurrency token", async () => asAdmin(async () => {
   const product = await app.createAdminProduct(productInput());
   const updated = await app.createAdminProductVariant(product.id, { expectedUpdatedAt: product.updatedAt, sku: `NEW-${randomUUID()}`, size: "L", color: "Black", price: "899.00" });
   assert.notEqual(updated.updatedAt, product.updatedAt); assert.equal(updated.variants.length, 2);
   const added = updated.variants.find((item) => item.size === "L");
   assert.equal((await db.inventory.findUnique({ where: { variantId: added.id } })).quantity, 0);
+}));
+
+test("variant create advances the aggregate token when wall clock equals the old token", async () => asAdmin(async () => {
+  const product = await productAtSameMillisecondToken();
+  const updated = await withSameMillisecondClock(() => app.createAdminProductVariant(product.id, {
+    expectedUpdatedAt: product.updatedAt,
+    sku: `SAME-MS-CREATE-${randomUUID()}`,
+    size: "L",
+    color: "Blue",
+    price: "899.00",
+  }));
+  assert.equal(updated.updatedAt, "2030-01-02T03:04:05.124Z");
 }));
 
 test("variant edit changes catalogue metadata only and blocks duplicates", async () => asAdmin(async () => {
@@ -155,6 +189,19 @@ test("variant edit changes catalogue metadata only and blocks duplicates", async
   await assert.rejects(() => app.updateAdminProductVariant(product.id, target.id, { expectedUpdatedAt: product.updatedAt, sku: target.sku, size: product.variants[0].size, color: product.variants[0].color, price: "1.00" }), { status: 409 });
 }));
 
+test("variant edit advances the aggregate token when wall clock equals the old token", async () => asAdmin(async () => {
+  const product = await productAtSameMillisecondToken();
+  const variant = product.variants[0];
+  const updated = await withSameMillisecondClock(() => app.updateAdminProductVariant(product.id, variant.id, {
+    expectedUpdatedAt: product.updatedAt,
+    sku: variant.sku,
+    size: variant.size,
+    color: "Blue",
+    price: variant.price,
+  }));
+  assert.equal(updated.updatedAt, "2030-01-02T03:04:05.124Z");
+}));
+
 test("variant deletion is always blocked and preserves referenced records", async () => asAdmin(async () => {
   const product = await app.createAdminProduct(productInput()); const variant = product.variants[0];
   const response = await app.variantDELETE(request("/api/admin/products/x/variants/x", "DELETE", { expectedUpdatedAt: product.updatedAt }), { params: Promise.resolve({ productId: product.id, variantId: variant.id }) });
@@ -165,6 +212,15 @@ test("product archive uses isActive and preserves product, variants and inventor
   const product = await app.createAdminProduct(productInput()); const variant = product.variants[0];
   const archived = await app.archiveAdminProduct(product.id, { expectedUpdatedAt: product.updatedAt });
   assert.equal(archived.isActive, false); assert.ok(await db.product.findUnique({ where: { id: product.id } })); assert.ok(await db.productVariant.findUnique({ where: { id: variant.id } })); assert.ok(await db.inventory.findUnique({ where: { variantId: variant.id } }));
+}));
+
+test("product archival advances the aggregate token when wall clock equals the old token", async () => asAdmin(async () => {
+  const product = await productAtSameMillisecondToken();
+  const archived = await withSameMillisecondClock(() => app.archiveAdminProduct(product.id, {
+    expectedUpdatedAt: product.updatedAt,
+  }));
+  assert.equal(archived.isActive, false);
+  assert.equal(archived.updatedAt, "2030-01-02T03:04:05.124Z");
 }));
 
 test("public catalogue reads remain compatible and archived products disappear", async () => asAdmin(async () => {

@@ -8,6 +8,8 @@ import type { Product } from "@/lib/data/catalog";
 type AddToCartButtonProps = {
   product: Pick<Product, "badge" | "handle" | "image" | "price" | "themeClass" | "title" | "vendor"> & {
     variantId?: string;
+    normalPrice: number;
+    isOnSale: boolean;
   };
 };
 

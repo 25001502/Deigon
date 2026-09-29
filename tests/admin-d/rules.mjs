@@ -90,7 +90,40 @@ test("Admin D source contains no hard product or variant deletion and no invento
   assert.match(source, /quantity: 0/);
 });
 
-test("Admin D changed no Prisma schema or migration file", () => {
+test("Admin D inputs and DTOs remain isolated from sale configuration", () => {
+  const source = ["lib/admin/products/input.ts", "lib/admin/products/serialize.ts"].map((file) => readFileSync(`${root}/${file}`, "utf8")).join("\n");
+  assert.doesNotMatch(source, /salePrice|saleStartsAt|saleEndsAt|discount/);
+});
+
+test("Admin D variant edits only read sale price to protect the base-price invariant", () => {
+  const source = readFileSync(`${root}/lib/admin/products/mutations.ts`, "utf8");
+  const mutation = source.match(/export async function updateAdminProductVariant\([\s\S]*?(?=\nexport async function)/)?.[0];
+  assert.ok(mutation);
+  assert.match(mutation, /select:[\s\S]*salePrice: true/);
+  assert.match(mutation, /variant\.salePrice[\s\S]*saleBasePriceConflict\(\)/);
+  assert.doesNotMatch(mutation, /saleStartsAt|saleEndsAt|discount/);
+  assert.doesNotMatch(mutation, /data:\s*\{[^}]*salePrice/s);
+});
+
+test("every Admin D Product aggregate mutation uses the shared monotonic token helper", () => {
+  const source = readFileSync(`${root}/lib/admin/products/mutations.ts`, "utf8");
+  assert.match(source, /import \{ nextProductUpdatedAt \} from "\.\/concurrency"/);
+  for (const name of [
+    "updateAdminProduct",
+    "createAdminProductVariant",
+    "updateAdminProductVariant",
+    "archiveAdminProduct",
+  ]) {
+    const mutation = source.match(new RegExp(`export async function ${name}\\([\\s\\S]*?(?=\\nexport async function|$)`))?.[0];
+    assert.ok(mutation, name);
+    assert.match(mutation, /nextProductUpdatedAt\(/, name);
+  }
+  assert.doesNotMatch(source, /new Date\(\)/);
+});
+
+test("ProductVariant keeps variant archival unsupported", () => {
   const schema = readFileSync(`${root}/prisma/schema.prisma`, "utf8");
-  assert.doesNotMatch(schema, /salePrice|archivedAt|discount/);
+  const variantModel = schema.match(/model ProductVariant \{[\s\S]*?\n\}/)?.[0];
+  assert.ok(variantModel);
+  assert.doesNotMatch(variantModel, /\barchivedAt\b/);
 });

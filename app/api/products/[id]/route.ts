@@ -15,6 +15,7 @@ export const dynamic = "force-dynamic";
 // Public: fetch one active product by slug (GET /api/products/[slug]).
 export async function GET(_request: Request, { params }: RouteParams) {
   try {
+    const pricingAt = new Date();
     const { id: slug } = await params;
 
     const product = await prisma.product.findFirst({
@@ -26,7 +27,10 @@ export async function GET(_request: Request, { params }: RouteParams) {
       return NextResponse.json({ ok: false, message: "Product not found" }, { status: 404 });
     }
 
-    return NextResponse.json({ ok: true, product: serializeProduct(product) });
+    return NextResponse.json(
+      { ok: true, product: serializeProduct(product, pricingAt) },
+      { headers: { "Cache-Control": "no-store, max-age=0" } },
+    );
   } catch (error) {
     return errorResponse(error);
   }

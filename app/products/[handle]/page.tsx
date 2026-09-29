@@ -18,7 +18,8 @@ type ProductPageProps = {
 
 export default async function ProductPage({ params }: ProductPageProps) {
   const { handle } = await params;
-  const product = await getProductBySlugFromDb(handle);
+  const pricingAt = new Date();
+  const product = await getProductBySlugFromDb(handle, pricingAt);
 
   if (!product) {
     notFound();
@@ -27,6 +28,7 @@ export default async function ProductPage({ params }: ProductPageProps) {
   const collection = getCollectionByHandle(product.collectionHandle);
   const { products: relatedProducts } = await getProductsFromDb({
     category: product.collectionHandle,
+    pricingAt,
   });
   const related = relatedProducts
     .filter((item) => item.handle !== product.handle)

@@ -32,18 +32,19 @@ test("homepage and collections share ProductCard while PDP and quick view share 
   for (const file of ["app/page.tsx", "app/collections/[handle]/page.tsx"]) {
     assert.match(source(file), /<ProductCard/, file);
   }
-  assert.match(source("components/storefront/product-card.tsx"), /formatRand\(product\.price\)/);
+  assert.match(source("components/storefront/product-card.tsx"), /<ProductPrice pricing=\{product\}/);
   for (const file of ["app/products/[handle]/page.tsx", "components/storefront/product-quick-view.tsx"]) {
     assert.match(source(file), /<ProductPurchasePanel product=\{product\}/, file);
   }
-  assert.match(source("components/storefront/product-purchase-panel.tsx"), /selectedVariant\?\.price \?\? product\.price/);
-  assert.match(source("lib/products.ts"), /Math\.min\(minimum, variant\.price\)/);
+  assert.match(source("components/storefront/product-purchase-panel.tsx"), /currentPriceFor\(product, selectedVariant\)/);
+  assert.match(source("lib/products.ts"), /variant\.price < minimum\.price/);
 });
 
-test("checkout price and historical order snapshots remain outside storefront display pricing", () => {
+test("F6 resolves cart and checkout pricing without changing catalogue mutation boundaries", () => {
   const cart = source("lib/cart/service.ts");
-  assert.match(cart, /lineTotal: Number\(item\.variant\.price\) \* item\.quantity/);
-  assert.match(cart, /price: Number\(item\.variant\.price\)/);
+  assert.match(cart, /resolveVariantPrice\(item\.variant, pricingAt\)/);
+  assert.match(cart, /lineTotal: Number\(lineTotal\)/);
+  assert.match(source("lib/checkout/service.ts"), /resolveVariantPrice\(item\.variant, pricingAt\)/);
   const mutations = source("lib/admin/products/mutations.ts");
   assert.doesNotMatch(mutations, /inventory\.(?:update|upsert|delete)/);
   assert.doesNotMatch(mutations, /orderItem\.(?:update|updateMany|delete|deleteMany)/);

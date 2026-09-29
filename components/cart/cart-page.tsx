@@ -7,6 +7,7 @@ import { useState } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
 import { MockProductMedia } from "@/components/storefront/mock-product-media";
+import { ProductPrice } from "@/components/storefront/product-price";
 import { formatRand } from "@/lib/money";
 
 export function CartPage() {
@@ -145,9 +146,10 @@ export function CartPage() {
                       </p>
                     ) : null}
 
-                    <p className="mt-1 text-sm text-gray-600">
-                      {formatRand(item.price)} each
-                    </p>
+                    <div className="mt-1">
+                      <ProductPrice pricing={item} className="text-sm text-gray-700" />
+                      <p className="text-xs text-gray-500">Each</p>
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center gap-3">

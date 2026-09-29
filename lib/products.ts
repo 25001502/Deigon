@@ -18,6 +18,8 @@ export type ApiProduct = {
     size: string | null;
     color: string | null;
     price: number;
+    normalPrice: number;
+    isOnSale: boolean;
     inventory: { quantity: number; inStock: boolean };
   }[];
 };
@@ -37,10 +39,14 @@ export type StorefrontVariant = {
   size: string | null;
   color: string | null;
   price: number;
+  normalPrice: number;
+  isOnSale: boolean;
   inventory: { quantity: number; inStock: boolean };
 };
 
 export type StorefrontProduct = Product & {
+  normalPrice: number;
+  isOnSale: boolean;
   variantId?: string;
   variants: StorefrontVariant[];
 };
@@ -84,18 +90,20 @@ export function normalizeProduct(product: ApiProduct): StorefrontProduct {
   const descriptionParts = (product.description ?? "").split("\n\n");
   const images = [...product.images].sort((a, b) => a.position - b.position).map((image) => image.url);
   const firstVariant = product.variants[0];
-  const displayPrice = product.variants.reduce(
-    (minimum, variant) => Math.min(minimum, variant.price),
-    firstVariant?.price ?? 0,
+  const displayPriceVariant = product.variants.reduce<typeof firstVariant>(
+    (minimum, variant) => !minimum || variant.price < minimum.price ? variant : minimum,
+    firstVariant,
   );
 
   return {
     handle: product.slug,
     title: product.name,
     vendor: product.category.name,
-    // Cards and unselected purchase panels show the lowest normal variant price.
-    // Once a variant is selected, ProductPurchasePanel displays that variant's price.
-    price: displayPrice,
+    // Cards and unselected purchase panels derive all comparison pricing from
+    // the same lowest-effective-price variant. Equal prices retain API order.
+    price: displayPriceVariant?.price ?? 0,
+    normalPrice: displayPriceVariant?.normalPrice ?? 0,
+    isOnSale: displayPriceVariant?.isOnSale ?? false,
     badge: product.badge ?? "",
     collectionHandle: product.category.slug,
     shortDescription: descriptionParts[0] ?? "",

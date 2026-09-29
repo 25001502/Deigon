@@ -14,7 +14,9 @@ import {
   variantCombinationKey,
   variantMutationInput,
 } from "./input";
+import { nextProductUpdatedAt } from "./concurrency";
 import { productDetailSelect, serializeProductDetail } from "./serialize";
+import { rethrowKnownSaleConstraint, saleBasePriceConflict } from "./sale/errors";
 import type { ProductVariantInput } from "./types";
 
 const transactionOptions = {
@@ -107,7 +109,7 @@ export async function updateAdminProduct(id: string, value: unknown) {
     if (existing.updatedAt.toISOString() !== input.expectedUpdatedAt) changed();
     const category = await categoryId(tx, input.categorySlug);
     await assertSlugAvailable(tx, input.slug, validId);
-    const now = new Date();
+    const now = nextProductUpdatedAt(existing.updatedAt);
     const result = await tx.product.updateMany({
       where: { id: validId, updatedAt: existing.updatedAt },
       data: {
@@ -146,7 +148,7 @@ export async function createAdminProductVariant(id: string, value: unknown) {
     if (product.updatedAt.toISOString() !== input.expectedUpdatedAt) changed();
     await assertSkuAvailable(tx, input.sku);
     assertCombinationAvailable(product.variants, input);
-    const now = new Date();
+    const now = nextProductUpdatedAt(product.updatedAt);
     const result = await tx.product.updateMany({
       where: { id: validId, updatedAt: product.updatedAt }, data: { updatedAt: now },
     });
@@ -165,27 +167,33 @@ export async function updateAdminProductVariant(productValue: string, variantVal
   const validProductId = productId(productValue);
   const validVariantId = productId(variantValue);
   const input = variantMutationInput(value);
-  return prisma.$transaction(async (tx) => {
-    const product = await tx.product.findUnique({
-      where: { id: validProductId },
-      select: { updatedAt: true, variants: { select: { id: true, size: true, color: true } } },
-    });
-    if (!product) throw new ApiError("Product not found", 404);
-    if (!product.variants.some((variant) => variant.id === validVariantId)) throw new ApiError("Variant not found", 404);
-    if (product.updatedAt.toISOString() !== input.expectedUpdatedAt) changed();
-    await assertSkuAvailable(tx, input.sku, validVariantId);
-    assertCombinationAvailable(product.variants, input, validVariantId);
-    const now = new Date();
-    const result = await tx.product.updateMany({
-      where: { id: validProductId, updatedAt: product.updatedAt }, data: { updatedAt: now },
-    });
-    if (result.count !== 1) changed();
-    await tx.productVariant.update({
-      where: { id: validVariantId },
-      data: { sku: input.sku, size: input.size, color: input.color, price: input.price },
-    });
-    return productDetail(tx, validProductId);
-  }, transactionOptions);
+  try {
+    return await prisma.$transaction(async (tx) => {
+      const product = await tx.product.findUnique({
+        where: { id: validProductId },
+        select: { updatedAt: true, variants: { select: { id: true, size: true, color: true, salePrice: true } } },
+      });
+      if (!product) throw new ApiError("Product not found", 404);
+      const variant = product.variants.find((candidate) => candidate.id === validVariantId);
+      if (!variant) throw new ApiError("Variant not found", 404);
+      if (product.updatedAt.toISOString() !== input.expectedUpdatedAt) changed();
+      if (variant.salePrice && new Prisma.Decimal(input.price).lte(variant.salePrice)) saleBasePriceConflict();
+      await assertSkuAvailable(tx, input.sku, validVariantId);
+      assertCombinationAvailable(product.variants, input, validVariantId);
+      const now = nextProductUpdatedAt(product.updatedAt);
+      const result = await tx.product.updateMany({
+        where: { id: validProductId, updatedAt: product.updatedAt }, data: { updatedAt: now },
+      });
+      if (result.count !== 1) changed();
+      await tx.productVariant.update({
+        where: { id: validVariantId },
+        data: { sku: input.sku, size: input.size, color: input.color, price: input.price },
+      });
+      return productDetail(tx, validProductId);
+    }, transactionOptions);
+  } catch (error) {
+    rethrowKnownSaleConstraint(error);
+  }
 }
 
 export async function archiveAdminProduct(id: string, value: unknown) {
@@ -198,7 +206,8 @@ export async function archiveAdminProduct(id: string, value: unknown) {
     if (product.updatedAt.toISOString() !== input.expectedUpdatedAt) changed();
     if (product.isActive) {
       const result = await tx.product.updateMany({
-        where: { id: validId, updatedAt: product.updatedAt }, data: { isActive: false, updatedAt: new Date() },
+        where: { id: validId, updatedAt: product.updatedAt },
+        data: { isActive: false, updatedAt: nextProductUpdatedAt(product.updatedAt) },
       });
       if (result.count !== 1) changed();
     }

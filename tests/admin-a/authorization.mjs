@@ -28,16 +28,28 @@ const app = await bundle(`
     update: args => globalThis.__adminAuth.update(args),
   } };`,
   "next/navigation": `export function redirect(url) { const e = new Error('NEXT_REDIRECT'); e.location = url; throw e; }`,
-  "next/link": `export default function Link({ children, ...props }) { return <a {...props}>{children}</a>; }`,
+  "next/link": `export default function Link({ children, prefetch: _prefetch, ...props }) { return <a {...props}>{children}</a>; }`,
   "@/components/admin/admin-login-form": `export function AdminLoginForm() { return <form aria-label="Admin sign in" />; }`,
   "@/components/admin/admin-session-controls": `export function AdminSessionControls() { return <button>Sign out / switch account</button>; }`,
   "@/components/admin/admin-shell": `export function AdminShell({ children }) { return <main>{children}</main>; }`,
+  "@/lib/admin/dashboard/queries": `export async function getAdminDashboardData() { return globalThis.__adminAuth.dashboardData; }`,
 });
 
 beforeEach(() => {
   state = {
     user: { id: "verified-user", email: "admin@example.invalid" }, role: "CUSTOMER",
     authError: null, databaseError: null, queries: [], writes: [], verified: 0,
+    dashboardData: {
+      reportingAt: "2026-10-01T12:00:00.000Z",
+      revenue: { current: "0.00", previousComparable: "0.00", comparison: { direction: "FLAT", percentage: null, absoluteDelta: "0.00" } },
+      paidOrders: { current: 0, previousComparable: 0, comparison: { direction: "FLAT", percentage: null, absoluteDelta: 0 } },
+      averageOrderValue: { current: null, previousComparable: null, comparison: null },
+      fulfilment: { awaitingTotal: 0, confirmed: 0, processing: 0, shipped: 0, readyForPickup: 0 },
+      inventory: { outOfStock: 0, lowStock: 0, missingInventory: 0, lowStockThreshold: 5 },
+      sales: { activeVariants: 0 },
+      revenueTrend: ["2026-05", "2026-06", "2026-07", "2026-08", "2026-09", "2026-10"].map(month => ({ month, revenue: "0.00", paidOrders: 0 })),
+      recentOrders: [], topSkus: [],
+    },
     async getUser() { this.verified++; return { data: { user: this.user }, error: this.authError }; },
     async findUnique(args) {
       this.queries.push(args);
@@ -174,11 +186,11 @@ test("profile PATCH ignores attempted role/UUID/email escalation", async () => {
   assert.equal((await response.json()).profile.role, "CUSTOMER");
 });
 
-test("authorized admin pages expose only implemented tools and no invented business metrics", async () => {
+test("authorized admin pages expose implemented tools and approved dashboard metrics", async () => {
   state.role = "ADMIN";
   const dashboard = renderToStaticMarkup(await app.dashboard());
-  assert.match(dashboard, /Coming soon/);
-  assert.doesNotMatch(dashboard, /<form|<button|<input|mark.*paid|revenue|R\s*\d/i);
+  assert.match(dashboard, /Business overview|Revenue this month|Paid orders|Awaiting fulfilment/);
+  assert.doesNotMatch(dashboard, /<form|<button|<input|mark.*paid|providerCheckoutId|transactionId|idempotencyKey/i);
   const inventory = renderToStaticMarkup(await app.inventory());
   assert.match(inventory, /Stock management|Product visibility|Stock state|Search/);
   assert.doesNotMatch(inventory, /mark.*paid|revenue|provider|transaction|sale price|low stock/i);

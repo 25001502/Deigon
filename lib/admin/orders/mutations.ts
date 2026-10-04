@@ -3,12 +3,32 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { ApiError } from "@/lib/api/errors";
-import { canTransition, consistentMilestones, milestoneFields } from "@/lib/orders/fulfilment";
+import { enqueueOrderEmail } from "@/lib/email/enqueue-order-email";
+import type { OrderEmailEventType } from "@/lib/email/order-email-types";
+import {
+  canTransition,
+  consistentMilestones,
+  milestoneFields,
+  type FulfilmentTarget,
+} from "@/lib/orders/fulfilment";
 import { estimateInput, fulfilmentInput, johannesburgToday, orderId } from "./input";
 import { dateOnly, detailSelect, serializeDetail } from "./serialize";
 
 const mutationSelect = { ...detailSelect, inventoryReleasedAt: true } satisfies Prisma.OrderSelect;
 function conflict(): never { throw new ApiError("Order state changed or is not eligible for this action", 409); }
+
+function emailEventForTransition(targetStatus: FulfilmentTarget): OrderEmailEventType {
+  switch (targetStatus) {
+    case "PROCESSING": return "ORDER_PROCESSING";
+    case "SHIPPED": return "ORDER_SHIPPED";
+    case "READY_FOR_PICKUP": return "ORDER_READY_FOR_PICKUP";
+    case "DELIVERED": return "ORDER_COMPLETED";
+    default: {
+      const exhaustive: never = targetStatus;
+      throw new Error(`Unsupported fulfilment target: ${exhaustive}`);
+    }
+  }
+}
 
 async function lockedOrder(tx: Prisma.TransactionClient, id: string) {
   // Only Order is locked. A Payment lock here would invert the webhook lock order.
@@ -39,6 +59,7 @@ export async function transitionAdminOrder(id: string, value: unknown) {
     const updated = await tx.order.update({
       where: { id: validId }, data: { status: input.targetStatus, [field]: now }, select: detailSelect,
     });
+    await enqueueOrderEmail(tx, validId, emailEventForTransition(input.targetStatus), now);
     return serializeDetail(updated);
   }, transactionOptions);
 }

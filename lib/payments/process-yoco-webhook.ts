@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { enqueueOrderEmail } from "@/lib/email/enqueue-order-email";
 import { decimalToCents } from "@/lib/payments/yoco";
 
 type PaymentSucceededEvent = {
@@ -164,6 +165,7 @@ export async function processYocoWebhook(value: unknown): Promise<YocoWebhookRes
         confirmedAt,
       },
     });
+    await enqueueOrderEmail(tx, payment.order.id, "ORDER_CONFIRMED", confirmedAt);
     return "processed";
   }, { maxWait: 5_000, timeout: 10_000 });
 }

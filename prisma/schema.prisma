@@ -38,6 +38,21 @@ enum FulfilmentType {
   PICKUP
 }
 
+enum OrderEmailEventType {
+  ORDER_CONFIRMED
+  ORDER_PROCESSING
+  ORDER_SHIPPED
+  ORDER_READY_FOR_PICKUP
+  ORDER_COMPLETED
+}
+
+enum OrderEmailStatus {
+  PENDING
+  SENDING
+  SENT
+  DEAD
+}
+
 enum InventoryAdjustmentReason {
   RESTOCK
   CORRECTION
@@ -234,6 +249,7 @@ model Order {
 
   items              OrderItem[]
   payment            Payment?
+  emailOutboxEvents  OrderEmailOutbox[]
 
   @@index([userId])
   @@index([status])
@@ -278,6 +294,37 @@ model Payment {
 
   orderId String @unique
   order   Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+}
+
+model OrderEmailOutbox {
+  id                String              @id @default(cuid())
+  eventType         OrderEmailEventType
+  status            OrderEmailStatus    @default(PENDING)
+  recipientEmail    String              @db.VarChar(320)
+  recipientName     String              @db.VarChar(200)
+  templateVersion   Int
+  payload           Json
+  renderedSubject   String?             @db.Text
+  renderedHtml      String?             @db.Text
+  renderedText      String?             @db.Text
+  attemptCount      Int                 @default(0)
+  nextAttemptAt     DateTime            @default(now()) @db.Timestamptz(3)
+  claimedAt         DateTime?           @db.Timestamptz(3)
+  claimToken        String?             @db.VarChar(128)
+  lastAttemptAt     DateTime?           @db.Timestamptz(3)
+  sentAt            DateTime?           @db.Timestamptz(3)
+  providerMessageId String?             @unique @db.VarChar(255)
+  lastErrorCode     String?             @db.VarChar(100)
+  lastError         String?             @db.VarChar(1000)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+
+  orderId String
+  order   Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, eventType])
+  @@index([status, nextAttemptAt, createdAt])
+  @@index([status, claimedAt])
 }
 
 model InventoryAdjustment {

@@ -43,6 +43,11 @@ before(async () => {
       if (store?.holdPayment && !store.held) { store.held = true; store.holdPayment.enter(); await store.holdPayment.release; }
       return result;
     } },
+    orderEmailOutbox: { async create(event) {
+      const result = await event.query(event.args);
+      if (context.getStore()?.failOutboxCreateAfter) throw new Error("TEST ONLY rollback after outbox write");
+      return result;
+    } },
   } });
   globalThis.__adminB1 = { client, context };
   app = await bundle(`
@@ -56,6 +61,10 @@ before(async () => {
     export { PATCH as estimatePATCH } from './app/api/admin/orders/[orderId]/estimated-delivery/route';
   `, {
     "server-only": "",
+    "next/server": `
+      export const after = () => {};
+      export const NextResponse = { json: (value, init) => Response.json(value, init) };
+    `,
     "@/lib/prisma": "export const prisma = globalThis.__adminB1.client;",
     "@/lib/supabase/server": `export const createClient = async () => ({ auth: { getUser: async () => {
       const store = globalThis.__adminB1.context.getStore();
@@ -74,6 +83,7 @@ after(async () => {
 
 async function fixture(orderData = {}, paymentData = {}) {
   const id = randomUUID();
+  const fulfilmentType = orderData.fulfilmentType ?? "DELIVERY";
   const user = await db.user.create({ data: { id, email: `${id}@example.invalid`, name: "Live customer" } });
   const address = await db.address.create({ data: { userId: id, fullName: "Live", addressLine1: "Live address", city: "Live city", province: "Live province", postalCode: "0001" } });
   const category = await db.category.create({ data: { name: "Test category", slug: id } });
@@ -81,16 +91,23 @@ async function fixture(orderData = {}, paymentData = {}) {
   const variant = await db.productVariant.create({ data: { productId: product.id, sku: id, price: "100.25", inventory: { create: { quantity: 17 } } } });
   const cart = await db.cart.create({ data: { userId: id, items: { create: { productId: product.id, variantId: variant.id, quantity: 3 } } } });
   const order = await db.order.create({ data: {
-    orderNumber: `DGN-B1-${id}`, idempotencyKey: `idem-${id}`, status: "CONFIRMED", paymentStatus: "PAID", fulfilmentType: "DELIVERY",
+    orderNumber: `DGN-B1-${id}`, idempotencyKey: `idem-${id}`, status: "CONFIRMED", paymentStatus: "PAID", fulfilmentType,
     subtotal: "200.50", shippingFee: "50.25", total: "250.75", customerName: "Historical Customer", customerEmail: `snapshot-${id}@example.invalid`, customerPhone: "0000000000",
-    shippingAddressLine1: "Historical address", shippingAddressLine2: "Historical line two", shippingCity: "Historical city", shippingProvince: "Limpopo", shippingPostalCode: "0000", shippingCountry: "South Africa",
-    pickupLocation: null, confirmedAt: new Date("2026-01-01"), userId: id, addressId: address.id,
+    shippingAddressLine1: fulfilmentType === "DELIVERY" ? "Historical address" : null,
+    shippingAddressLine2: fulfilmentType === "DELIVERY" ? "Historical line two" : null,
+    shippingCity: fulfilmentType === "DELIVERY" ? "Historical city" : null,
+    shippingProvince: fulfilmentType === "DELIVERY" ? "Limpopo" : null,
+    shippingPostalCode: fulfilmentType === "DELIVERY" ? "0000" : null,
+    shippingCountry: fulfilmentType === "DELIVERY" ? "South Africa" : null,
+    pickupLocation: fulfilmentType === "PICKUP" ? "Historical pickup" : null,
+    confirmedAt: new Date("2026-01-01"), userId: id, addressId: address.id,
     items: { create: { quantity: 2, unitPrice: "100.25", lineTotal: "200.50", title: "Historical item", sku: "Historical SKU", size: "M", color: "Black", imageUrl: "https://example.invalid/item.png", productId: product.id, variantId: variant.id } },
     payment: { create: { provider: "YOCO", amount: "250.75", status: "PAID", transactionId: `txn-${id}`, providerCheckoutId: `checkout-${id}`, ...paymentData } },
     ...orderData,
   } });
   return { order, user, address, product, variant, cart };
 }
+const emailEvents = (orderId) => db.orderEmailOutbox.findMany({ where: { orderId }, orderBy: { createdAt: "asc" } });
 async function snapshot(f) {
   // Includes all columns, particularly Payment.updatedAt and every immutable snapshot.
   return clone({
@@ -111,19 +128,32 @@ for (const [type, path] of [["DELIVERY", ["CONFIRMED", "PROCESSING", "SHIPPED", 
   test(`${type}: all milestones, retries and complete payment/inventory/cart/snapshot immutability`, async () => asAdmin(async () => {
     const f = await fixture({ fulfilmentType: type });
     const fields = { PROCESSING: "processingAt", SHIPPED: "shippedAt", READY_FOR_PICKUP: "readyForPickupAt", DELIVERED: "deliveredAt" };
+    const eventTypes = { PROCESSING: "ORDER_PROCESSING", SHIPPED: "ORDER_SHIPPED", READY_FOR_PICKUP: "ORDER_READY_FOR_PICKUP", DELIVERED: "ORDER_COMPLETED" };
     for (let index = 0; index < path.length - 1; index++) {
       const beforeValue = await snapshot(f);
+      const beforeEvents = await emailEvents(f.order.id);
       const result = await transition(f.order.id, path[index], path[index + 1]);
       assert.equal(result.status, path[index + 1]); assert.ok(result[fields[path[index + 1]]]);
       const afterValue = await snapshot(f);
       unchangedExcept(beforeValue, afterValue, ["status", "updatedAt", fields[path[index + 1]]]);
+      const events = await emailEvents(f.order.id);
+      assert.equal(events.length, beforeEvents.length + 1);
+      const email = events.at(-1);
+      assert.equal(email.eventType, eventTypes[path[index + 1]]);
+      assert.equal(email.status, "PENDING");
+      assert.equal(email.payload.fulfilmentType, type);
+      assert.equal(email.payload[fields[path[index + 1]]], result[fields[path[index + 1]]]);
+      assert.equal(email.payload.destination.type, type);
       assert.deepEqual(await transition(f.order.id, path[index], path[index + 1]), result);
       assert.deepEqual(await snapshot(f), afterValue);
+      assert.equal((await emailEvents(f.order.id)).length, events.length);
     }
     const terminal = await snapshot(f);
+    const terminalEvents = await emailEvents(f.order.id);
     await conflict(() => transition(f.order.id, "DELIVERED", "PROCESSING"));
     await conflict(() => transition(f.order.id, "CONFIRMED", "PROCESSING"));
     assert.deepEqual(await snapshot(f), terminal);
+    assert.deepEqual(await emailEvents(f.order.id), terminalEvents);
   }));
 }
 
@@ -153,6 +183,7 @@ for (const [name, orderData, paymentData] of inconsistent) test(`conflict withou
   const beforeValue = await snapshot(f);
   await conflict(() => transition(f.order.id, "CONFIRMED", "PROCESSING"));
   assert.deepEqual(await snapshot(f), beforeValue);
+  assert.equal((await emailEvents(f.order.id)).length, 0);
   // ETA uses the same paid-state checks (future confirmation only affects adding a milestone).
   if (name !== "future confirmation") await conflict(() => estimate(f.order.id, "2999-01-01"));
   assert.deepEqual(await snapshot(f), beforeValue);
@@ -182,6 +213,7 @@ test("ETA today, future, clear and duplicate keep every protected field unchange
     unchangedExcept(beforeValue, afterValue, ["estimatedDeliveryDate", "updatedAt"]);
     assert.deepEqual(await estimate(f.order.id, value, previous), result);
     assert.deepEqual(await snapshot(f), afterValue);
+    assert.equal((await emailEvents(f.order.id)).length, 0);
     previous = value;
   }
 }));
@@ -239,17 +271,20 @@ test("concurrent duplicate transition serializes and preserves one timestamp", a
   const results = await race(() => transition(f.order.id, "CONFIRMED", "PROCESSING"), () => transition(f.order.id, "CONFIRMED", "PROCESSING"));
   assert.ok(results.every((r) => r.status === "fulfilled")); assert.deepEqual(results[0].value, results[1].value);
   unchangedExcept(beforeValue, await snapshot(f), ["status", "processingAt", "updatedAt"]);
+  assert.deepEqual((await emailEvents(f.order.id)).map((event) => event.eventType), ["ORDER_PROCESSING"]);
 });
 test("competing admin transition cannot skip a stage", async () => {
   const f = await fixture();
   const results = await race(() => transition(f.order.id, "CONFIRMED", "PROCESSING"), () => transition(f.order.id, "CONFIRMED", "SHIPPED"));
   assert.equal(results[0].status, "fulfilled"); assert.equal(results[1].reason.status, 409);
   assert.equal((await db.order.findUnique({ where: { id: f.order.id } })).status, "PROCESSING");
+  assert.deepEqual((await emailEvents(f.order.id)).map((event) => event.eventType), ["ORDER_PROCESSING"]);
 });
 test("stale retry after another admin advances beyond target conflicts", async () => {
   const f = await fixture({ status: "PROCESSING", processingAt: new Date("2026-02-01") });
   const results = await race(() => transition(f.order.id, "PROCESSING", "SHIPPED"), () => transition(f.order.id, "CONFIRMED", "PROCESSING"));
   assert.equal(results[0].status, "fulfilled"); assert.equal(results[1].reason.status, 409);
+  assert.deepEqual((await emailEvents(f.order.id)).map((event) => event.eventType), ["ORDER_SHIPPED"]);
 });
 for (const duplicate of [false, true]) test(`concurrent ETA ${duplicate ? "duplicate is no-op" : "different value conflicts"}`, async () => {
   const f = await fixture(); const beforeValue = await snapshot(f);
@@ -263,6 +298,17 @@ for (const kind of ["fulfilment", "estimate"]) test(`${kind} rolls back failure 
   const f = await fixture(); const beforeValue = await snapshot(f);
   await assert.rejects(() => asAdmin(() => kind === "fulfilment" ? transition(f.order.id, "CONFIRMED", "PROCESSING") : estimate(f.order.id, "2999-01-01"), { failUpdate: true }), /rollback after write/);
   assert.deepEqual(await snapshot(f), beforeValue);
+  assert.equal((await emailEvents(f.order.id)).length, 0);
+});
+
+test("fulfilment and outbox insertion roll back together after the outbox write", async () => {
+  const f = await fixture(); const beforeValue = await snapshot(f);
+  await assert.rejects(
+    () => asAdmin(() => transition(f.order.id, "CONFIRMED", "PROCESSING"), { failOutboxCreateAfter: true }),
+    /rollback after outbox write/,
+  );
+  assert.deepEqual(await snapshot(f), beforeValue);
+  assert.equal((await emailEvents(f.order.id)).length, 0);
 });
 
 const event = (f) => ({ id: `evt-${f.user.id}`, type: "payment.succeeded", payload: {
@@ -389,6 +435,7 @@ for (const [route, method] of [["listGET", "GET"], ["detailGET", "GET"], ["fulfi
     const response = await as(user, () => app[route](request(method, body, { "x-role": "ADMIN", cookie: "role=ADMIN; adminId=forged" }), routeContext(f.order.id)));
     privateResponse(response, identity === "anonymous" ? 401 : identity === "admin" ? 200 : 403);
     if (identity !== "admin") assert.deepEqual(await snapshot(f), beforeValue);
+    assert.equal((await emailEvents(f.order.id)).length, identity === "admin" && route === "fulfilmentPATCH" ? 1 : 0);
   });
 }
 test("reusable server services deny anonymous and CUSTOMER directly before transactions", async () => {

@@ -50,13 +50,20 @@ before(async () => {
   assert.ok(!/^\s*(DROP|TRUNCATE|DELETE|UPDATE|INSERT)\b/im.test(ddl));
   await observer.query(ddl.slice(ddl.indexOf("-- Create")));
   db = new PrismaClient({ adapter: new PrismaPg(connection) });
-  const instrumented = db.$extends({ query: { payment: { async update(event) {
-    const fail = context.getStore()?.failPaymentUpdate;
-    if (fail === "before") throw new Error("PRIVATE simulated database failure");
-    const result = await event.query(event.args);
-    if (fail === "after") throw new Error("PRIVATE simulated acknowledgement failure");
-    return result;
-  } } } });
+  const instrumented = db.$extends({ query: {
+    payment: { async update(event) {
+      const fail = context.getStore()?.failPaymentUpdate;
+      if (fail === "before") throw new Error("PRIVATE simulated database failure");
+      const result = await event.query(event.args);
+      if (fail === "after") throw new Error("PRIVATE simulated acknowledgement failure");
+      return result;
+    } },
+    orderEmailOutbox: { async create(event) {
+      const result = await event.query(event.args);
+      if (context.getStore()?.failOutboxCreateAfter) throw new Error("PRIVATE simulated outbox acknowledgement failure");
+      return result;
+    } },
+  } });
   globalThis.__deigonPhase6c = { client: instrumented };
   const bundle = await build({
     stdin: {
@@ -66,9 +73,13 @@ before(async () => {
     },
     bundle: true, write: false, platform: "node", format: "cjs", packages: "external",
     plugins: [{ name: "phase6c-boundaries", setup(builder) {
-      builder.onResolve({ filter: /^(server-only|@\/lib\/prisma)$/ }, ({ path }) => ({ path, namespace: "test-boundary" }));
+      builder.onResolve({ filter: /^(server-only|next\/server|@\/lib\/prisma)$/ }, ({ path }) => ({ path, namespace: "test-boundary" }));
       builder.onLoad({ filter: /.*/, namespace: "test-boundary" }, ({ path }) => ({
-        contents: path === "server-only" ? "" : "export const prisma = globalThis.__deigonPhase6c.client;",
+        contents: path === "server-only"
+          ? ""
+          : path === "next/server"
+            ? `export const after = () => {}; export const NextResponse = { json: (value, init) => Response.json(value, init) };`
+            : "export const prisma = globalThis.__deigonPhase6c.client;",
       }));
     } }],
   });
@@ -110,7 +121,10 @@ async function fixture(overrides = {}) {
   const id = randomUUID();
   const user = await db.user.create({ data: { id, email: `${id}@example.invalid` } });
   const category = await db.category.create({ data: { name: "Phase 6C TEST", slug: id } });
-  const product = await db.product.create({ data: { name: "Phase 6C TEST", slug: id, categoryId: category.id } });
+  const product = await db.product.create({ data: {
+    name: "Phase 6C TEST", slug: id, categoryId: category.id,
+    images: { create: { url: "/phase-6c-snapshot.jpg", position: 0 } },
+  }, include: { images: true } });
   const variant = await db.productVariant.create({ data: {
     sku: id, price: "480.50", productId: product.id,
     inventory: { create: { quantity: 7 } },
@@ -124,19 +138,29 @@ async function fixture(overrides = {}) {
   const order = await db.order.create({ data: {
     orderNumber: `DGN-TEST-${id}`,
     idempotencyKey: `idem-${id}`,
-    fulfilmentType: "PICKUP",
+    fulfilmentType: overrides.fulfilmentType ?? "PICKUP",
     subtotal: "480.50",
     shippingFee: "0.00",
     total: overrides.orderTotal ?? "480.50",
     customerName: "Phase Six C",
-    customerEmail: user.email,
-    pickupLocation: "TEST pickup",
+    customerEmail: overrides.customerEmail ?? user.email,
+    pickupLocation: overrides.fulfilmentType === "DELIVERY" ? null : "TEST pickup",
+    shippingAddressLine1: overrides.fulfilmentType === "DELIVERY" ? "1 Test Street" : null,
+    shippingCity: overrides.fulfilmentType === "DELIVERY" ? "Johannesburg" : null,
+    shippingProvince: overrides.fulfilmentType === "DELIVERY" ? "Gauteng" : null,
+    shippingPostalCode: overrides.fulfilmentType === "DELIVERY" ? "2000" : null,
+    shippingCountry: overrides.fulfilmentType === "DELIVERY" ? "South Africa" : null,
     userId: user.id,
     status: overrides.orderStatus ?? "PENDING",
     paymentStatus: overrides.orderPaymentStatus ?? "PENDING",
     confirmedAt: overrides.confirmedAt,
     cancelledAt: overrides.cancelledAt,
     inventoryReleasedAt: overrides.inventoryReleasedAt,
+    items: { create: {
+      quantity: 1, unitPrice: "480.50", lineTotal: "480.50", title: "Phase 6C snapshot",
+      sku: variant.sku, size: "M", color: "Black", imageUrl: product.images[0].url,
+      productId: product.id, variantId: variant.id,
+    } },
     payment: { create: {
       amount: overrides.paymentAmount ?? "480.50",
       provider: "YOCO",
@@ -145,7 +169,7 @@ async function fixture(overrides = {}) {
       providerCheckoutId: checkoutId,
     } },
   }, include: { payment: true } });
-  return { user, cart, variant, order, checkoutId };
+  return { user, cart, product, variant, order, checkoutId };
 }
 
 function successfulEvent(f, overrides = {}) {
@@ -205,6 +229,7 @@ async function state(f) {
   });
   return {
     order,
+    outbox: await db.orderEmailOutbox.findMany({ where: { orderId: f.order.id }, orderBy: { createdAt: "asc" } }),
     inventory: (await db.inventory.findUniqueOrThrow({ where: { variantId: f.variant.id } })).quantity,
     cart: await db.cartItem.findMany({ where: { cartId: f.cart.id }, orderBy: { id: "asc" } }),
     orderCount: await db.order.count({ where: { id: f.order.id } }),
@@ -218,6 +243,7 @@ function assertPending(snapshot) {
   assert.equal(snapshot.order.confirmedAt, null);
   assert.equal(snapshot.order.payment.status, "PENDING");
   assert.equal(snapshot.order.payment.transactionId, null);
+  assert.equal(snapshot.outbox.length, 0);
 }
 
 function assertUnrelatedStateUnchanged(before, after) {
@@ -242,7 +268,56 @@ test("valid payment success atomically confirms authoritative Payment and Order 
   assert.ok(after.order.confirmedAt instanceof Date);
   assert.equal(after.order.cancelledAt, null);
   assert.equal(after.order.inventoryReleasedAt, null);
+  assert.equal(after.outbox.length, 1);
+  const [email] = after.outbox;
+  assert.equal(email.eventType, "ORDER_CONFIRMED");
+  assert.equal(email.status, "PENDING");
+  assert.equal(email.recipientEmail, f.user.email);
+  assert.equal(email.recipientName, "Phase Six C");
+  assert.equal(email.templateVersion, 1);
+  assert.equal(email.attemptCount, 0);
+  assert.equal(email.nextAttemptAt.getTime(), after.order.confirmedAt.getTime());
+  assert.deepEqual(email.payload.items, [{
+    title: "Phase 6C snapshot", sku: f.variant.sku, size: "M", color: "Black",
+    imageUrl: "/phase-6c-snapshot.jpg", quantity: 1, unitPrice: "480.50", lineTotal: "480.50",
+  }]);
+  assert.equal(email.payload.orderNumber, f.order.orderNumber);
+  assert.equal(email.payload.subtotal, "480.50");
+  assert.equal(email.payload.shippingFee, "0.00");
+  assert.equal(email.payload.total, "480.50");
+  assert.deepEqual(email.payload.destination, { type: "PICKUP", pickupLocation: "TEST pickup" });
+  assert.equal(email.payload.confirmedAt, after.order.confirmedAt.toISOString());
+  assert.equal(email.payload.createdAt, after.order.createdAt.toISOString());
+  for (const key of ["userId", "addressId", "transactionId", "providerCheckoutId", "idempotencyKey", "inventory"]) {
+    assert.equal(JSON.stringify(email.payload).includes(`\"${key}\"`), false, key);
+  }
   assertUnrelatedStateUnchanged(before, after);
+});
+
+test("confirmation event remains immutable after live customer and catalogue changes", async () => {
+  const f = await fixture();
+  assert.equal((await deliver(successfulEvent(f))).status, 200);
+  const before = structuredClone((await state(f)).outbox[0]);
+  await db.user.update({ where: { id: f.user.id }, data: { name: "Changed name", email: `${randomUUID()}@example.invalid` } });
+  await db.product.update({ where: { id: f.product.id }, data: { name: "Changed product" } });
+  await db.productVariant.update({ where: { id: f.variant.id }, data: { sku: randomUUID(), price: "999.99" } });
+  await db.productImage.update({ where: { id: f.product.images[0].id }, data: { url: "/changed.jpg" } });
+  assert.deepEqual(structuredClone((await state(f)).outbox[0]), before);
+});
+
+test("delivery confirmation snapshot uses only the historical delivery destination", async () => {
+  const f = await fixture({ fulfilmentType: "DELIVERY" });
+  assert.equal((await deliver(successfulEvent(f))).status, 200);
+  const [email] = (await state(f)).outbox;
+  assert.deepEqual(email.payload.destination, {
+    type: "DELIVERY",
+    addressLine1: "1 Test Street",
+    addressLine2: null,
+    city: "Johannesburg",
+    province: "Gauteng",
+    postalCode: "2000",
+    country: "South Africa",
+  });
 });
 
 for (const [name, overrides, expectedStatus] of [
@@ -304,6 +379,7 @@ test("sequential duplicate deliveries are idempotent and preserve confirmedAt", 
     const result = await deliver(event);
     assert.deepEqual(result, { status: 200, body: { ok: true, result: "duplicate" } });
     assert.equal((await state(f)).order.confirmedAt.getTime(), confirmedAt.getTime());
+    assert.equal((await state(f)).outbox.length, 1);
   }
 });
 
@@ -318,6 +394,7 @@ test("concurrent duplicate deliveries converge on one transition without state c
   const after = await state(f);
   assert.equal(after.order.status, "CONFIRMED");
   assert.equal(after.order.payment.transactionId, event.payload.id);
+  assert.equal(after.outbox.length, 1);
   assertUnrelatedStateUnchanged(before, after);
 });
 
@@ -352,6 +429,7 @@ test("a duplicate success does not move an already paid order backwards", async 
     assert.equal(after.order.status, orderStatus);
     assert.equal(after.order.confirmedAt.getTime(), confirmedAt.getTime());
     assert.equal(after.order.payment.transactionId, paymentId);
+    assert.equal(after.outbox.length, 0);
   }
 });
 
@@ -405,6 +483,32 @@ for (const failureStage of ["before", "after"]) {
     assert.equal((await state(f)).order.status, "CONFIRMED");
   });
 }
+
+test("failure after outbox insertion rolls Payment, Order and email event back together", async () => {
+  const f = await fixture();
+  const event = successfulEvent(f);
+  const failed = await deliver(event, { context: { failOutboxCreateAfter: true } });
+  assert.deepEqual(failed, {
+    status: 503,
+    body: { ok: false, message: "Webhook processing temporarily unavailable." },
+  });
+  assertPending(await state(f));
+  assert.equal((await deliver(event)).body.result, "processed");
+  assert.equal((await state(f)).outbox.length, 1);
+});
+
+test("invalid historical recipient does not roll back authoritative payment confirmation", async () => {
+  const f = await fixture({ customerEmail: "not-an-email" });
+  const result = await deliver(successfulEvent(f));
+  assert.deepEqual(result, { status: 200, body: { ok: true, result: "processed" } });
+  const after = await state(f);
+  assert.equal(after.order.status, "CONFIRMED");
+  assert.equal(after.order.paymentStatus, "PAID");
+  assert.equal(after.order.payment.status, "PAID");
+  assert.equal(after.outbox.length, 1);
+  assert.equal(after.outbox[0].recipientEmail, "not-an-email");
+  assert.equal(after.outbox[0].payload.customer.email, "not-an-email");
+});
 
 test("a successful notification cannot resurrect a cancelled or released order", async () => {
   for (const overrides of [

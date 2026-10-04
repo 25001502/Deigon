@@ -11,7 +11,7 @@ export default function ShippingPolicyPage() {
         <PolicyList
           items={[
             "Once your order is confirmed, you will receive an email with your order number.",
-            "You will receive a notification with a tracking number as soon as your order has been shipped.",
+            "You will receive an email when your delivery order is out for delivery.",
           ]}
         />
       </PolicySection>

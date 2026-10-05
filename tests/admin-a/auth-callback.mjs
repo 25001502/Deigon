@@ -30,7 +30,7 @@ function request(next, code = "valid-code") {
   return new NextRequest(url);
 }
 
-for (const next of ["/account", "/admin/orders", "/collections/all?page=2#products", "/products/a%20b", "/account?tab=security", "/"]) {
+for (const next of ["/account", "/admin/orders", "/checkout", "/collections/all?page=2#products", "/products/a%20b", "/account?tab=security", "/"]) {
   test(`callback preserves safe internal destination ${next} and session cookie`, async () => {
     const response = await app.GET(request(next));
     assert.equal(response.headers.get("location"), new URL(next, "https://shop.example").href);

@@ -4,7 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import { useCart } from "@/components/cart/cart-provider";
+import { CartAuthenticationError, useCart } from "@/components/cart/cart-provider";
+import { authPathFor } from "@/lib/auth/safe-callback-path";
 import type { StorefrontProduct } from "@/lib/products";
 
 import { currentPriceFor, ProductPrice } from "./product-price";
@@ -175,7 +176,10 @@ export function ProductPurchasePanel({
       );
 
       return true;
-    } catch {
+    } catch (error) {
+      if (error instanceof CartAuthenticationError) {
+        router.push(authPathFor("login", "/checkout"));
+      }
       return false;
     }
   };

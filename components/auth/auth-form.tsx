@@ -5,15 +5,18 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { createClient } from "@/lib/supabase/client";
+import { authPathFor, safeCallbackPath } from "@/lib/auth/safe-callback-path";
 
 type AuthFormProps = {
   mode: "login" | "signup";
   error?: string;
   message?: string;
+  next?: string;
 };
 
-export function AuthForm({ mode, error, message }: AuthFormProps) {
+export function AuthForm({ mode, error, message, next }: AuthFormProps) {
   const isLogin = mode === "login";
+  const destination = safeCallbackPath(next ?? null);
   const router = useRouter();
   const [formError, setFormError] = useState(error);
   const [formMessage, setFormMessage] = useState(message);
@@ -26,12 +29,14 @@ export function AuthForm({ mode, error, message }: AuthFormProps) {
     const email = String(formData.get("email") ?? "").trim();
     const password = String(formData.get("password") ?? "");
     const supabase = createClient();
+    const callbackUrl = new URL("/auth/callback", window.location.origin);
+    if (destination !== "/account") callbackUrl.searchParams.set("next", destination);
     const result = isLogin
       ? await supabase.auth.signInWithPassword({ email, password })
       : await supabase.auth.signUp({
           email,
           password,
-          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+          options: { emailRedirectTo: callbackUrl.href },
         });
 
     if (result.error) {
@@ -46,8 +51,13 @@ export function AuthForm({ mode, error, message }: AuthFormProps) {
       return;
     }
 
+    if (destination !== "/account") {
+      window.location.assign(destination);
+      return;
+    }
+
     router.refresh();
-    router.push("/account");
+    router.push(destination);
   }
 
   return (
@@ -78,7 +88,7 @@ export function AuthForm({ mode, error, message }: AuthFormProps) {
 
       <p className="mt-6 text-sm text-ink/65">
         {isLogin ? "New to Deigon? " : "Already have an account? "}
-        <Link href={isLogin ? "/signup" : "/login"} className="font-semibold text-ink underline underline-offset-4">
+        <Link href={authPathFor(isLogin ? "signup" : "login", destination)} className="font-semibold text-ink underline underline-offset-4">
           {isLogin ? "Create an account" : "Log in"}
         </Link>
       </p>

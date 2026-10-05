@@ -1,8 +1,8 @@
 // Accept only application-root-relative paths. Validate the decoded form too:
 // browsers normalize backslashes and control characters during URL parsing.
-export function safeCallbackPath(value: string | null): string {
+export function safeCallbackPath(value: unknown): string {
   const fallback = "/account";
-  if (!value || !value.startsWith("/") || value.startsWith("//")) return fallback;
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) return fallback;
   try {
     const decoded = decodeURIComponent(value);
     if (
@@ -21,4 +21,11 @@ export function safeCallbackPath(value: string | null): string {
   } catch {
     return fallback;
   }
+}
+
+export function authPathFor(mode: "login" | "signup", next: unknown): string {
+  const destination = safeCallbackPath(next);
+  return destination === "/account"
+    ? `/${mode}`
+    : `/${mode}?next=${encodeURIComponent(destination)}`;
 }

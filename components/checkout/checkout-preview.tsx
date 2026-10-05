@@ -12,6 +12,7 @@ import {
 import { ProductPrice } from "@/components/storefront/product-price";
 import { formatRand } from "@/lib/money";
 import { storeInfo } from "@/lib/data/catalog";
+import { authPathFor } from "@/lib/auth/safe-callback-path";
 
 const inputClassName =
   "mt-1.5 w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 outline-none transition focus:border-black focus:ring-1 focus:ring-black";
@@ -81,6 +82,8 @@ export function CheckoutPreview() {
     subtotal,
     clearCartLocally,
     waitForPendingMutations,
+    readyForCheckout,
+    cartSyncFailed,
   } = useCart();
 
   const [fulfilment, setFulfilment] = useState<
@@ -218,6 +221,11 @@ export function CheckoutPreview() {
         },
       );
 
+      if (response.status === 401) {
+        window.location.assign(authPathFor("login", "/checkout"));
+        return;
+      }
+
       const responseBody = (await response
         .json()
         .catch(() => null)) as CheckoutResponse | null;
@@ -277,6 +285,21 @@ export function CheckoutPreview() {
         </h1>
         <p className="mt-6 max-w-md text-sm leading-7 text-gray-600">
           Taking you to Yoco to complete your payment.
+        </p>
+      </main>
+    );
+  }
+
+  if (readyForCheckout === false) {
+    return (
+      <main className="mx-auto flex min-h-[60vh] max-w-2xl flex-col items-center justify-center px-4 py-20 text-center sm:px-6">
+        <h1 className="text-3xl font-bold text-gray-900">
+          {cartSyncFailed ? "Your cart could not be synced" : "Preparing your checkout..."}
+        </h1>
+        <p className="mt-4 text-sm leading-7 text-gray-600">
+          {cartSyncFailed
+            ? "Your selections are still saved. Reload this page to try again."
+            : "We are bringing your saved items into your account."}
         </p>
       </main>
     );

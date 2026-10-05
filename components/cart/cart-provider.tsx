@@ -64,10 +64,19 @@ type AddItemOptions = {
   waitForServer?: boolean;
 };
 
+export class CartAuthenticationError extends Error {
+  constructor() {
+    super("Sign in to continue shopping.");
+    this.name = "CartAuthenticationError";
+  }
+}
+
 type CartContextValue = {
   items: CartLine[];
   itemCount: number;
   subtotal: number;
+  readyForCheckout: boolean;
+  cartSyncFailed: boolean;
 
   addItem: (
     product: CartProduct,
@@ -122,6 +131,18 @@ function readStoredCart() {
     window.localStorage.removeItem(STORAGE_KEY);
     return [] as CartLine[];
   }
+}
+
+function storePendingGuestAddition(product: CartProduct, quantity: number) {
+  const stored = readStoredCart();
+  const key = cartLineKey(product);
+  const existing = stored.find((item) => cartLineKey(item) === key);
+  const next = existing
+    ? stored.map((item) => cartLineKey(item) === key
+      ? { ...item, quantity: item.quantity + quantity }
+      : item)
+    : [...stored, { ...product, quantity }];
+  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
 }
 
 type PublicProductResponse = {
@@ -250,6 +271,10 @@ async function requestCartMutation(
       }
     | null;
 
+  if (response.status === 401) {
+    throw new CartAuthenticationError();
+  }
+
   if (!response.ok || body?.ok === false) {
     throw new Error(
       body?.message ?? "Cart request failed",
@@ -268,6 +293,8 @@ export function CartProvider({
     useState(false);
   const [cartError, setCartError] =
     useState<string | null>(null);
+  const [readyUserId, setReadyUserId] = useState<string | null>(null);
+  const [cartSyncFailed, setCartSyncFailed] = useState(false);
 
   const mergedUserRef = useRef<string | null>(null);
 
@@ -382,6 +409,7 @@ export function CartProvider({
     operation: () => Promise<void>,
     errorMessage: string,
     waitForServer = false,
+    onAuthFailure?: () => void,
   ) => {
     const requestId =
       ++mutationSequenceRef.current;
@@ -393,18 +421,24 @@ export function CartProvider({
             latestUserIdRef.current !==
             userId
           ) {
+            if (waitForServer) {
+              throw new Error("Cart session changed. Please try again.");
+            }
             return;
           }
 
           try {
             await operation();
+            if (latestUserIdRef.current !== userId && waitForServer) {
+              throw new Error("Cart session changed. Please try again.");
+            }
           } catch (error) {
             if (
               latestUserIdRef.current !==
               userId
             ) {
               if (waitForServer) {
-                throw error;
+                throw new Error("Cart session changed. Please try again.");
               }
 
               return;
@@ -414,6 +448,10 @@ export function CartProvider({
               error instanceof Error
                 ? error.message
                 : errorMessage;
+
+            if (error instanceof CartAuthenticationError) {
+              onAuthFailure?.();
+            }
 
             setCartError(message);
 
@@ -480,6 +518,7 @@ export function CartProvider({
       }
 
       loading = true;
+      if (mounted) setCartSyncFailed(false);
 
       /**
        * GUEST USER
@@ -490,6 +529,7 @@ export function CartProvider({
 
         if (mounted) {
           setIsAuthenticated(false);
+          setReadyUserId(null);
           commitItems(guestItems);
         }
 
@@ -568,12 +608,14 @@ export function CartProvider({
         commitItems(
           toCartLines(cart),
         );
+        setReadyUserId(user.id);
       } catch {
         if (shouldMerge) {
           mergedUserRef.current = null;
         }
 
         if (mounted) {
+          setCartSyncFailed(true);
           /**
            * Keep the visible cart instead of wiping it.
            */
@@ -650,6 +692,8 @@ export function CartProvider({
         items,
         itemCount,
         subtotal,
+        readyForCheckout: !authLoading && isHydrated && Boolean(user?.id) && readyUserId === user?.id,
+        cartSyncFailed,
 
         /**
          * ADD ITEM
@@ -707,6 +751,9 @@ export function CartProvider({
             !product.variantId ||
             !user?.id
           ) {
+            if (!isAuthenticated || !user?.id) {
+              window.localStorage.setItem(STORAGE_KEY, JSON.stringify(itemsRef.current));
+            }
             return Promise.resolve();
           }
 
@@ -735,14 +782,13 @@ export function CartProvider({
               "We couldn't add that item to your cart.",
               options.waitForServer ??
                 false,
+              () => storePendingGuestAddition(product, quantity),
             );
 
           /**
            * Buy It Now can explicitly wait.
            */
-          if (
-            options.waitForServer
-          ) {
+          if (options.waitForServer) {
             return mutation;
           }
 
@@ -1082,6 +1128,10 @@ export function CartProvider({
       items,
       isAuthenticated,
       user?.id,
+      authLoading,
+      isHydrated,
+      readyUserId,
+      cartSyncFailed,
     ]);
 
   return (

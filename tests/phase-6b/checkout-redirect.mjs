@@ -141,6 +141,34 @@ test("network failure retains the key and does not clear or redirect", async () 
   assert.ok(find(render(), (node) => node.props?.role === "alert"));
 });
 
+test("checkout 401 sends the shopper to login with a checkout return and keeps cart and attempt", async () => {
+  globalThis.fetch.mock.mockImplementation(async () => Response.json({ ok: false, message: "Authentication needed" }, { status: 401 }));
+  await submit();
+  assert.deepEqual(view.events.at(-1), ["assign", "/login?next=%2Fcheckout"]);
+  assert.equal(view.cart.items.length, 1);
+  assert.ok(view.storage.has(keyName));
+  assert.equal(find(render(), (node) => node.props?.role === "alert"), undefined);
+});
+
+test("non-auth checkout errors retain their real messages and never redirect to login", async () => {
+  for (const status of [400, 403, 409, 503]) {
+    view.events.length = 0;
+    globalThis.fetch.mock.mockImplementation(async () => Response.json({ ok: false, message: `Checkout error ${status}` }, { status }));
+    await submit();
+    assert.equal(find(render(), (node) => node.props?.role === "alert").props.children, `Checkout error ${status}`);
+    assert.ok(!view.events.some((event) => Array.isArray(event) && event[0] === "assign"));
+    assert.equal(view.cart.items.length, 1);
+  }
+});
+
+test("checkout waits for the authenticated guest-cart merge before showing the form", () => {
+  view.cart.readyForCheckout = false;
+  assert.equal(find(render(), (node) => node.type === "form"), undefined);
+  assert.equal(find(render(), (node) => node.type === "h1").props.children, "Preparing your checkout...");
+  view.cart.readyForCheckout = true;
+  assert.ok(find(render(), (node) => node.type === "form"));
+});
+
 test("missing, malformed or unsafe redirects never clear the cart or discard the key", async () => {
   for (const payment of [undefined, { provider: "OTHER", redirectUrl }, ...["", "/relative", "javascript:alert(1)", "http://c.yoco.com/test", "https://user:pass@c.yoco.com/test"].map((url) => ({ provider: "YOCO", redirectUrl: url }))]) {
     globalThis.fetch.mock.mockImplementation(async () => Response.json({ ok: true, order: success.order, payment }));

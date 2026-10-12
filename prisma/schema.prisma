@@ -44,6 +44,7 @@ enum OrderEmailEventType {
   ORDER_SHIPPED
   ORDER_READY_FOR_PICKUP
   ORDER_COMPLETED
+  ADMIN_NEW_ORDER
 }
 
 enum OrderEmailStatus {
@@ -299,6 +300,7 @@ model Payment {
 model OrderEmailOutbox {
   id                String              @id @default(cuid())
   eventType         OrderEmailEventType
+  recipientKey      String              @default("customer") @db.VarChar(320)
   status            OrderEmailStatus    @default(PENDING)
   recipientEmail    String              @db.VarChar(320)
   recipientName     String              @db.VarChar(200)
@@ -322,7 +324,7 @@ model OrderEmailOutbox {
   orderId String
   order   Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
 
-  @@unique([orderId, eventType])
+  @@unique([orderId, eventType, recipientKey])
   @@index([status, nextAttemptAt, createdAt])
   @@index([status, claimedAt])
 }

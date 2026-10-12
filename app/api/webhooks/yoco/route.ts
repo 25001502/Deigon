@@ -23,7 +23,9 @@ export async function POST(request: Request) {
     if (result === "processed") {
       after(async () => {
         try {
-          const summary = await dispatchOrderEmails({ limit: 1 });
+          // Customer confirmation plus two admin recipients can normally start immediately.
+          // The scheduler remains responsible for all remaining attempts and recovery.
+          const summary = await dispatchOrderEmails({ limit: 3 });
           if (summary.dead > 0) {
             console.error("Order email background dispatch dead-lettered events.", {
               examined: summary.examined,

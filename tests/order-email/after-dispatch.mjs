@@ -88,7 +88,7 @@ test("processed webhook responds normally and registers one small durable dispat
   assert.equal(callbacks.length, 1);
   assert.equal(dispatches.length, 0);
   assert.deepEqual(await invokeCallbacks(), []);
-  assert.deepEqual(dispatches, [{ limit: 1 }]);
+  assert.deepEqual(dispatches, [{ limit: 3 }]);
 });
 
 test("ignored and duplicate webhook outcomes do not schedule email dispatch", async () => {

@@ -105,7 +105,7 @@ before(async () => {
   const migrations = readdirSync(path.join(root, "prisma/migrations")).filter((name) => /^\d/.test(name)).sort();
   const index = migrations.indexOf(migration);
   assert.notEqual(index, -1);
-  assert.equal(index, migrations.length - 1, "B1 migration must be the latest migration");
+  assert.ok(index < migrations.length, "B1 migration must remain in the history");
   for (const name of migrations.slice(0, index)) {
     await pool.query(readFileSync(path.join(root, "prisma/migrations", name, "migration.sql"), "utf8"));
   }
@@ -229,4 +229,33 @@ test("outbox history prevents deletion of its referenced order", async () => {
   await insertOutbox({ id: "restrict-event", orderId: "email-restrict-order" });
   await assert.rejects(pool.query('DELETE FROM "Order" WHERE id=$1', ["email-restrict-order"]), { code: "23503" });
   assert.equal((await pool.query('SELECT COUNT(*)::int count FROM "Order" WHERE id=$1', ["email-restrict-order"])).rows[0].count, 1);
+});
+
+test("D2 migration preserves every existing outbox row and enforces recipient-aware uniqueness", async () => {
+  const before = (await pool.query('SELECT * FROM "OrderEmailOutbox" ORDER BY id')).rows;
+  const sql = readFileSync(path.join(root, "prisma/migrations/20261005000000_admin_new_order_email/migration.sql"), "utf8");
+  assert.match(sql, /^BEGIN;[\s\S]*COMMIT;\s*$/);
+  assert.doesNotMatch(sql, /\b(?:DELETE|TRUNCATE|INSERT|UPDATE)\b/i);
+  await pool.query(sql);
+  const after = (await pool.query('SELECT * FROM "OrderEmailOutbox" ORDER BY id')).rows;
+  assert.deepEqual(after.map(({ recipientKey, ...row }) => ({ ...row, recipientKey })),
+    before.map((row) => ({ ...row, recipientKey: "customer" })));
+  const indexes = JSON.stringify((await pool.query(`SELECT indexname,indexdef FROM pg_indexes WHERE tablename='OrderEmailOutbox'`)).rows);
+  assert.ok(indexes.includes("OrderEmailOutbox_orderId_eventType_recipientKey_key"));
+  assert.ok(!indexes.includes('"OrderEmailOutbox_orderId_eventType_key"'));
+  await assert.rejects(pool.query(`INSERT INTO "OrderEmailOutbox"
+    (id,"orderId","eventType","recipientEmail","recipientName","templateVersion",payload,"updatedAt")
+    VALUES ('d2-duplicate-customer','email-existing-order','ORDER_CONFIRMED','other@example.invalid','Other',1,'{}',NOW())`), { code: "23505" });
+  for (const [id, email] of [["d2-admin-a", "a@example.invalid"], ["d2-admin-b", "b@example.invalid"]]) {
+    await pool.query(`INSERT INTO "OrderEmailOutbox"
+      (id,"orderId","eventType","recipientKey","recipientEmail","recipientName","templateVersion",payload,"updatedAt")
+      VALUES ($1,'email-existing-order','ADMIN_NEW_ORDER',$2,$2,'Admin',1,'{}',NOW())`, [id, email]);
+  }
+  await assert.rejects(pool.query(`INSERT INTO "OrderEmailOutbox"
+    (id,"orderId","eventType","recipientKey","recipientEmail","recipientName","templateVersion",payload,"updatedAt")
+    VALUES ('d2-admin-a-again','email-existing-order','ADMIN_NEW_ORDER','a@example.invalid','a@example.invalid','Admin',1,'{}',NOW())`), { code: "23505" });
+  await assert.rejects(pool.query(`INSERT INTO "OrderEmailOutbox"
+    (id,"orderId","eventType","recipientKey","recipientEmail","recipientName","templateVersion",payload,"updatedAt")
+    VALUES ('d2-admin-wrong-key','email-existing-order','ADMIN_NEW_ORDER','wrong@example.invalid','a@example.invalid','Admin',1,'{}',NOW())`), { code: "23514" });
+  assert.equal((await pool.query(`SELECT COUNT(*)::int count FROM "OrderEmailOutbox" WHERE "eventType"='ADMIN_NEW_ORDER'`)).rows[0].count, 2);
 });

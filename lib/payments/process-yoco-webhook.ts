@@ -1,6 +1,7 @@
 import "server-only";
 
 import { prisma } from "@/lib/prisma";
+import { enqueueAdminNewOrderEmails } from "@/lib/email/enqueue-admin-new-order";
 import { enqueueOrderEmail } from "@/lib/email/enqueue-order-email";
 import { decimalToCents } from "@/lib/payments/yoco";
 
@@ -166,6 +167,19 @@ export async function processYocoWebhook(value: unknown): Promise<YocoWebhookRes
       },
     });
     await enqueueOrderEmail(tx, payment.order.id, "ORDER_CONFIRMED", confirmedAt);
+    const adminNotifications = await enqueueAdminNewOrderEmails(tx, payment.order.id, confirmedAt);
+    if (
+      adminNotifications.availableAdmins === 0 ||
+      adminNotifications.skippedRecipients > 0 ||
+      adminNotifications.preparationFailed
+    ) {
+      console.error("Admin new-order notification preparation incomplete.", {
+        availableAdmins: adminNotifications.availableAdmins,
+        enqueued: adminNotifications.enqueued,
+        skippedRecipients: adminNotifications.skippedRecipients,
+        preparationFailed: adminNotifications.preparationFailed,
+      });
+    }
     return "processed";
   }, { maxWait: 5_000, timeout: 10_000 });
 }

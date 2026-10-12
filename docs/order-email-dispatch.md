@@ -3,7 +3,7 @@
 DEIGON creates order-email events durably in `OrderEmailOutbox` in the same database transaction as the authoritative payment or fulfilment change. The production flow is:
 
 1. A Yoco webhook or an admin fulfilment transition commits the business change and its transactional outbox event.
-2. A best-effort Next.js `after()` callback asks the shared dispatcher to process one event without delaying the response.
+2. A best-effort Next.js `after()` callback asks the shared dispatcher to process immediately due events without delaying the response.
 3. An external scheduler calls `POST /api/internal/scheduler/send-order-emails` every minute to recover missed callbacks and wake the durable worker with a two-event dispatch limit.
 4. The durable dispatcher claims, renders, and sends each event through Resend.
 
@@ -21,7 +21,7 @@ The secrets are separate trust domains with no fallback between them. Internal e
 
 ## Delivery and recovery guarantees
 
-Delivery uses at-least-once dispatch processing with strong duplicate suppression: the database event is unique per order and lifecycle event, every worker owns a time-bounded claim token, and every attempt for one outbox row reuses `deigon/order-email/v1/<outbox-id>` as its Resend idempotency key. This is not a claim of mathematically exactly-once distributed delivery.
+Delivery uses at-least-once dispatch processing with strong duplicate suppression: each customer lifecycle event is unique per order, while each admin new-order event is unique per order and normalized recipient. Every worker owns a time-bounded claim token, and every attempt for one outbox row reuses `deigon/order-email/v1/<outbox-id>` as its Resend idempotency key. This is not a claim of mathematically exactly-once distributed delivery.
 
 The dispatcher claims one due row at a time in a short PostgreSQL transaction using `FOR UPDATE SKIP LOCKED`. For one order, an existing earlier lifecycle event in `PENDING` or `SENDING` blocks later events until the earlier event reaches terminal `SENT` or `DEAD`; unrelated orders remain independently claimable. It commits the `SENDING` claim before any provider work. On the first claim, it validates the immutable snapshot, renders the exact subject, HTML, and text once, and persists all three through the active claim token before contacting Resend. Retries and stale recovery reuse that stored content byte-for-byte even if application URL configuration or template code changes. The recipient continues to come from the immutable outbox recipient, and the trusted sender remains fixed in the provider adapter.
 
@@ -44,3 +44,27 @@ Apply `20261002000000_order_email_outbox` before deploying application code that
 Before enabling delivery, configure the production `RESEND_API_KEY` and `DEIGON_ORDER_EMAIL_SCHEDULER_SECRET`, deploy the reviewed application, and configure the external scheduler with its dedicated bearer credential. Run one controlled real order through the normal payment flow and verify the outbox and provider result without retrying the payment or manually changing order state.
 
 If delivery misbehaves, pause the external scheduler and roll the application back while leaving the additive outbox schema in place. Do not delete outbox rows or manually mark them `SENT`. Existing pending rows remain durable for investigation and a corrected dispatcher can resume them later. Rollback must not change payment, fulfilment, inventory, or order authority.
+
+# D2 admin new-order notifications
+
+Apply `20261005000000_admin_new_order_email` before deploying D2 application code. The
+transaction-wrapped migration adds `ADMIN_NEW_ORDER` and a `recipientKey` column. Existing
+customer events retain the default `customer` key and remain unique per order and lifecycle
+event. Admin events use a normalized email key, so each recipient has independent delivery,
+retry, provider idempotency, and DEAD state. The migration preserves existing outbox rows.
+
+On a verified PENDING-to-PAID Yoco transition, the customer confirmation is enqueued with
+the payment. Current `User.role = ADMIN` recipients are read from the database and their
+emails are snapshotted into separate outbox rows. Notification preparation uses savepoints:
+an invalid address or notification-specific failure cannot roll back the legitimate paid
+order or its customer confirmation. The service logs only aggregate counts and a generic
+failure flag; monitor `Admin new-order notification preparation incomplete.`. A zero-admin
+result is a release blocker for this production installation, so verify at least one ADMIN
+before deployment. Do not put addresses in webhook input or an environment variable.
+
+The webhook's best-effort `after()` dispatch claims up to three immediately due rows, which
+normally covers one customer and two admins. The existing external scheduler remains the
+retry and recovery authority for additional recipients or failed attempts. Admin events do
+not participate in customer lifecycle ordering, and no provider call occurs in the payment
+transaction. The admin template links to protected `/admin/orders/[orderId]` and omits
+provider identifiers and full delivery-address details.

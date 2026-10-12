@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import type { OrderEmailEventType, Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
+import { parseAdminNewOrderSnapshotV1, type AdminNewOrderSnapshotV1 } from "./admin-new-order-snapshot";
 import { getOrderEmailAppOrigin } from "./order-email-config";
 import { normalizeOrderEmailRecipient, parseOrderEmailSnapshotV1 } from "./order-email-snapshot";
 import {
@@ -19,6 +20,7 @@ import {
 } from "./provider";
 import { normalizeOrderEmailAppOrigin, renderOrderEmail } from "./render-order-email";
 import { createResendEmailProvider } from "./resend-provider";
+import { renderAdminNewOrderV1 } from "./templates/admin-new-order-v1";
 
 export const ORDER_EMAIL_CLAIM_LEASE_MS = 10 * 60 * 1000;
 export const ORDER_EMAIL_PROVIDER_TIMEOUT_MS = 10 * 1000;
@@ -53,6 +55,7 @@ type CandidateRow = {
   status: "PENDING" | "SENDING";
   recipientEmail: string;
   recipientName: string;
+  recipientKey: string;
   templateVersion: number;
   payload: Prisma.JsonValue;
   renderedSubject: string | null;
@@ -115,6 +118,7 @@ async function claimOne(
         candidate."status",
         candidate."recipientEmail",
         candidate."recipientName",
+        candidate."recipientKey",
         candidate."templateVersion",
         candidate."payload",
         candidate."renderedSubject",
@@ -135,11 +139,14 @@ async function claimOne(
             AND candidate."nextAttemptAt" <= ${now}
           )
         )
-        AND NOT EXISTS (
+        AND (
+          candidate."eventType" = 'ADMIN_NEW_ORDER'
+          OR NOT EXISTS (
           SELECT 1
           FROM "OrderEmailOutbox" earlier
           WHERE
             earlier."orderId" = candidate."orderId"
+            AND earlier."eventType" <> 'ADMIN_NEW_ORDER'
             AND earlier."status" IN ('PENDING', 'SENDING')
             AND CASE earlier."eventType"
               WHEN 'ORDER_CONFIRMED' THEN 1
@@ -154,6 +161,7 @@ async function claimOne(
               WHEN 'ORDER_READY_FOR_PICKUP' THEN 3
               WHEN 'ORDER_COMPLETED' THEN 4
             END
+          )
         )
       ORDER BY
         CASE WHEN candidate."status" = 'SENDING' THEN 0 ELSE 1 END,
@@ -275,6 +283,20 @@ async function prepareProviderRequest(
     return { kind: "invalid", invalidCode: "invalid_recipient" };
   }
 
+  let adminPayload: AdminNewOrderSnapshotV1 | null = null;
+  if (event.eventType === "ADMIN_NEW_ORDER") {
+    try {
+      adminPayload = parseAdminNewOrderSnapshotV1(event.payload);
+    } catch {
+      return { kind: "invalid", invalidCode: "invalid_email_payload" };
+    }
+    if (
+      event.recipientKey !== adminPayload.recipient.recipientEmail ||
+      recipient.recipientEmail !== adminPayload.recipient.recipientEmail ||
+      recipient.recipientName !== adminPayload.recipient.recipientName
+    ) return { kind: "invalid", invalidCode: "recipient_snapshot_mismatch" };
+  }
+
   const renderedValues = [event.renderedSubject, event.renderedHtml, event.renderedText];
   const hasPersistedRender = renderedValues.every((value) => value !== null);
   if (!hasPersistedRender && renderedValues.some((value) => value !== null)) {
@@ -293,38 +315,49 @@ async function prepareProviderRequest(
       return { kind: "invalid", invalidCode: "unsupported_template_version" };
     }
 
-    let payload;
-    try {
-      payload = parseOrderEmailSnapshotV1(event.payload);
-    } catch {
-      return { kind: "invalid", invalidCode: "invalid_email_payload" };
-    }
+    if (adminPayload) {
+      try {
+        rendered = renderAdminNewOrderV1(adminPayload, dependencies.appOrigin);
+      } catch {
+        return { kind: "invalid", invalidCode: "invalid_email_event" };
+      }
+    } else {
+      if (event.eventType === "ADMIN_NEW_ORDER") {
+        return { kind: "invalid", invalidCode: "invalid_email_payload" };
+      }
+      let payload;
+      try {
+        payload = parseOrderEmailSnapshotV1(event.payload);
+      } catch {
+        return { kind: "invalid", invalidCode: "invalid_email_payload" };
+      }
 
-    let payloadRecipient;
-    try {
-      payloadRecipient = normalizeOrderEmailRecipient({
-        recipientEmail: payload.customer.email,
-        recipientName: payload.customer.name,
-      });
-    } catch {
-      return { kind: "invalid", invalidCode: "invalid_email_payload" };
-    }
-    if (
-      recipient.recipientEmail.toLowerCase() !== payloadRecipient.recipientEmail.toLowerCase() ||
-      recipient.recipientName !== payloadRecipient.recipientName
-    ) {
-      return { kind: "invalid", invalidCode: "recipient_snapshot_mismatch" };
-    }
+      let payloadRecipient;
+      try {
+        payloadRecipient = normalizeOrderEmailRecipient({
+          recipientEmail: payload.customer.email,
+          recipientName: payload.customer.name,
+        });
+      } catch {
+        return { kind: "invalid", invalidCode: "invalid_email_payload" };
+      }
+      if (
+        recipient.recipientEmail.toLowerCase() !== payloadRecipient.recipientEmail.toLowerCase() ||
+        recipient.recipientName !== payloadRecipient.recipientName
+      ) {
+        return { kind: "invalid", invalidCode: "recipient_snapshot_mismatch" };
+      }
 
-    try {
-      rendered = renderOrderEmail({
-        eventType: event.eventType,
-        templateVersion: event.templateVersion,
-        payload,
-        appOrigin: dependencies.appOrigin,
-      });
-    } catch {
-      return { kind: "invalid", invalidCode: "invalid_email_event" };
+      try {
+        rendered = renderOrderEmail({
+          eventType: event.eventType,
+          templateVersion: event.templateVersion,
+          payload,
+          appOrigin: dependencies.appOrigin,
+        });
+      } catch {
+        return { kind: "invalid", invalidCode: "invalid_email_event" };
+      }
     }
 
     const persisted = await guardedUpdate(dependencies.database, event, {

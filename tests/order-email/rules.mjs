@@ -24,7 +24,8 @@ test("B1 schema defines the approved event, status and outbox contract", () => {
   for (const value of ["PENDING", "SENDING", "SENT", "DEAD"]) assert.match(schema, new RegExp(`\\b${value}\\b`));
   assert.match(schema, /model OrderEmailOutbox \{/);
   assert.match(schema, /order\s+Order\s+@relation\(fields: \[orderId\], references: \[id\], onDelete: Restrict\)/);
-  assert.match(schema, /@@unique\(\[orderId, eventType\]\)/);
+  assert.match(schema, /recipientKey\s+String\s+@default\("customer"\)/);
+  assert.match(schema, /@@unique\(\[orderId, eventType, recipientKey\]\)/);
   assert.match(schema, /@@index\(\[status, nextAttemptAt, createdAt\]\)/);
   assert.match(schema, /@@index\(\[status, claimedAt\]\)/);
   assert.match(schema, /providerMessageId\s+String\?\s+@unique/);
@@ -215,10 +216,11 @@ test("B4 fast paths use after and the shared durable dispatcher only at route bo
   const fulfilment = source("app/api/admin/orders/[orderId]/fulfilment/route.ts");
   for (const value of [webhook, fulfilment]) {
     assert.match(value, /import \{ after(?:, NextResponse)? \} from "next\/server"|import \{ after, NextResponse \} from "next\/server"/);
-    assert.match(value, /dispatchOrderEmails\(\{ limit: 1 \}\)/);
     assert.match(value, /Order email background dispatch failed\./);
     assert.doesNotMatch(value, /\bResend\b|createResendEmailProvider|EmailProvider|RESEND_API_KEY/);
   }
+  assert.match(webhook, /dispatchOrderEmails\(\{ limit: 3 \}\)/);
+  assert.match(fulfilment, /dispatchOrderEmails\(\{ limit: 1 \}\)/);
   assert.match(webhook, /if \(result === "processed"\) \{\s*after/);
 });
 
@@ -238,7 +240,7 @@ test("B4 maintenance routes share bearer-secret authorization and expose no prov
 
 test("B5B-R2 adds no migration or Vercel scheduler configuration", () => {
   const migrations = readdirSync(`${root}/prisma/migrations`).filter((name) => /^\d/.test(name)).sort();
-  assert.equal(migrations.at(-1), "20261002000000_order_email_outbox");
+  assert.equal(migrations.at(-1), "20261005000000_admin_new_order_email");
   assert.equal(existsSync(`${root}/vercel.json`), false);
   assert.equal(existsSync(`${root}/app/api/internal/cron/send-order-emails/route.ts`), false);
   assert.equal(existsSync(`${root}/app/api/internal/scheduler/send-order-emails/route.ts`), true);

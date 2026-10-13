@@ -22,18 +22,18 @@ export default async function AdminLoginPage() {
 
   return (
     <main className="flex min-h-[65vh] items-center justify-center px-4 py-12 sm:px-6">
-      <section aria-labelledby="admin-login-title" className="w-full max-w-md rounded-2xl border border-ink/10 bg-white p-6 sm:p-8">
-        <p className="text-xs font-semibold uppercase tracking-widest text-forest">DEIGON Admin</p>
-        <h1 id="admin-login-title" className="mt-3 text-3xl font-semibold text-ink">{denied ? "Admin access required" : "Sign in to admin"}</h1>
+      <section aria-labelledby="admin-login-title" className="w-full max-w-md rounded-2xl border border-neutral-300 bg-white p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-widest text-neutral-900">DEIGON Admin</p>
+        <h1 id="admin-login-title" className="mt-3 text-3xl font-semibold text-neutral-900">{denied ? "Admin access required" : "Sign in to admin"}</h1>
         {denied ? (
           <>
-            <p role="alert" className="mt-4 text-sm leading-6 text-ink/70">The signed-in account does not have admin access. You can continue to your customer account or sign out to use another account.</p>
-            <Link href="/account" className="mt-6 inline-block rounded text-sm font-semibold text-ink underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4">Return to customer account</Link>
+            <p role="alert" className="mt-4 text-sm leading-6 text-neutral-600">The signed-in account does not have admin access. You can continue to your customer account or sign out to use another account.</p>
+            <Link href="/account" className="mt-6 inline-block rounded text-sm font-semibold text-neutral-900 underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-offset-4">Return to customer account</Link>
             <div className="mt-5"><AdminSessionControls switchAccount /></div>
           </>
         ) : (
           <>
-            <p className="mt-4 text-sm leading-6 text-ink/70">Use your existing DEIGON account. Admin access must already be assigned.</p>
+            <p className="mt-4 text-sm leading-6 text-neutral-600">Use your existing DEIGON account. Admin access must already be assigned.</p>
             <AdminLoginForm />
           </>
         )}

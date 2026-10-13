@@ -19,7 +19,7 @@ export function AdminNavigation() {
           const active = pathname === href || (href !== "/admin" && pathname.startsWith(`${href}/`));
           return (
             <li key={href}>
-              <Link href={href} prefetch={false} aria-current={active ? "page" : undefined} className={`block rounded-xl px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-forest ${active ? "bg-ink text-white" : "text-ink/75 hover:bg-sand"}`}>{label}</Link>
+              <Link href={href} prefetch={false} aria-current={active ? "page" : undefined} className={`block rounded-xl px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-neutral-950 ${active ? "bg-black text-white" : "text-neutral-600 hover:bg-neutral-100"}`}>{label}</Link>
             </li>
           );
         })}

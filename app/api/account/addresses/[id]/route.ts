@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 
 import { requireUser } from "@/lib/auth/require-user";
 import { errorResponse } from "@/lib/api/errors";
+import { parseAddress } from "@/lib/account/parse-address";
 import { prisma } from "@/lib/prisma";
-import { parseAddress } from "@/app/api/account/addresses/route";
 
 type Params = { params: Promise<{ id: string }> };
 

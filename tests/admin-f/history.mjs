@@ -357,8 +357,10 @@ test("unpaid-order expiry restores stock without changing any historical monetar
   const { order } = await checkout(f);
   const before = await monetarySnapshot(order.id);
   assert.equal((await db.inventory.findUniqueOrThrow({ where: { variantId: f.variant.id } })).quantity, 8);
-  const expiredAt = new Date("2026-10-10T12:00:00.000Z");
-  assert.equal(await app.expireUnpaidOrderCandidate(order.id, expiredAt, expiredAt), "expired");
+  const ttlMs = 60 * 60_000;
+  const expiredAt = new Date(order.createdAt.getTime() + ttlMs + 1_000);
+  const cutoff = new Date(expiredAt.getTime() - ttlMs);
+  assert.equal(await app.expireUnpaidOrderCandidate(order.id, cutoff, expiredAt), "expired");
   assert.equal((await db.inventory.findUniqueOrThrow({ where: { variantId: f.variant.id } })).quantity, 10);
   const expired = await db.order.findUniqueOrThrow({ where: { id: order.id }, include: { payment: true } });
   assert.equal(expired.status, "CANCELLED");

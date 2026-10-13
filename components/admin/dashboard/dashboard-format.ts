@@ -38,15 +38,15 @@ function displayPercentage(value: string | null): string | null {
 export function comparisonView(comparison: MoneyComparison | CountComparison): ComparisonView {
   const percentage = displayPercentage(comparison.percentage);
   if (comparison.direction === "UP") {
-    return { direction: "UP", label: percentage ? `Up ${percentage}%` : "Up", arrow: "↑", tone: "text-emerald-800 bg-emerald-50 ring-emerald-700/15" };
+    return { direction: "UP", label: percentage ? `Up ${percentage}%` : "Up", arrow: "↑", tone: "text-neutral-900 bg-neutral-200 ring-neutral-500/15" };
   }
   if (comparison.direction === "DOWN") {
-    return { direction: "DOWN", label: percentage ? `Down ${percentage}%` : "Down", arrow: "↓", tone: "text-red-800 bg-red-50 ring-red-700/15" };
+    return { direction: "DOWN", label: percentage ? `Down ${percentage}%` : "Down", arrow: "↓", tone: "text-neutral-900 bg-neutral-100 ring-neutral-500/15" };
   }
   if (comparison.direction === "NEW") {
-    return { direction: "NEW", label: "New", arrow: null, tone: "text-emerald-800 bg-emerald-50 ring-emerald-700/15" };
+    return { direction: "NEW", label: "New", arrow: null, tone: "text-neutral-900 bg-neutral-200 ring-neutral-500/15" };
   }
-  return { direction: "FLAT", label: "No change", arrow: null, tone: "text-ink/70 bg-paper ring-ink/10" };
+  return { direction: "FLAT", label: "No change", arrow: null, tone: "text-neutral-600 bg-neutral-50 ring-neutral-500" };
 }
 
 export function revenueInsight(comparison: MoneyComparison): string {

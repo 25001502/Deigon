@@ -10,6 +10,8 @@ export async function bundle(contents, boundaries = {}) {
     stdin: { contents, resolveDir: root, sourcefile: "admin-a-test.tsx", loader: "tsx" },
     bundle: true, write: false, platform: "node", format: "cjs", packages: "external", jsx: "automatic",
     plugins: [{ name: "admin-test-boundaries", setup(builder) {
+      builder.onResolve({ filter: /\.css$/ }, ({ path: importPath }) => ({ path: importPath, namespace: "admin-test-css" }));
+      builder.onLoad({ filter: /.*/, namespace: "admin-test-css" }, () => ({ contents: "", loader: "js" }));
       builder.onResolve({ filter: /.*/ }, ({ path: importPath }) => {
         if (Object.hasOwn(boundaries, importPath)) return { path: importPath, namespace: "admin-test" };
       });

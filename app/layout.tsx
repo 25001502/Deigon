@@ -39,7 +39,7 @@ export default function RootLayout({
       >
         <AuthProvider>
           <CartProvider>
-            <div className="relative min-h-screen overflow-hidden">
+            <div className="relative min-h-screen overflow-x-clip">
               <Header />
               {children}
               <Footer />

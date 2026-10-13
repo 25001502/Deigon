@@ -1,11 +1,35 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState, useSyncExternalStore, type FocusEvent } from "react";
 
 import { useCart } from "@/components/cart/cart-provider";
 import { useAuth } from "@/components/auth/auth-provider";
 import { announcements, collections } from "@/lib/data/catalog";
+import {
+  announcementAutoplayEnabled,
+  announcementInteractionActive,
+  nextAnnouncementIndex,
+  previousAnnouncementIndex,
+  scheduleAnnouncementAdvance,
+} from "@/lib/storefront/announcement-rotation";
+
+const reducedMotionQuery = "(prefers-reduced-motion: reduce)";
+
+function subscribeToReducedMotion(onStoreChange: () => void) {
+  const mediaQuery = window.matchMedia(reducedMotionQuery);
+  mediaQuery.addEventListener("change", onStoreChange);
+
+  return () => mediaQuery.removeEventListener("change", onStoreChange);
+}
+
+function getReducedMotionPreference() {
+  return window.matchMedia(reducedMotionQuery).matches;
+}
+
+function getServerReducedMotionPreference() {
+  return false;
+}
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -20,30 +44,119 @@ export function Header() {
   const { itemCount } = useCart();
   const { user, loading } = useAuth();
   const [announcementIndex, setAnnouncementIndex] = useState(0);
+  const [isAnnouncementPaused, setIsAnnouncementPaused] = useState(false);
+  const [isAnnouncementHovered, setIsAnnouncementHovered] = useState(false);
+  const [isAnnouncementFocusWithin, setIsAnnouncementFocusWithin] = useState(false);
+  const [rotationVersion, setRotationVersion] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
+  const prefersReducedMotion = useSyncExternalStore(
+    subscribeToReducedMotion,
+    getReducedMotionPreference,
+    getServerReducedMotionPreference,
+  );
+  const isAnnouncementInteracting = announcementInteractionActive({
+    isHovered: isAnnouncementHovered,
+    isFocusWithin: isAnnouncementFocusWithin,
+  });
 
-  const prev = () => setAnnouncementIndex((i) => (i - 1 + announcements.length) % announcements.length);
-  const next = () => setAnnouncementIndex((i) => (i + 1) % announcements.length);
+  useEffect(() => {
+    if (
+      !announcementAutoplayEnabled({
+        isPaused: isAnnouncementPaused,
+        isInteracting: isAnnouncementInteracting,
+        prefersReducedMotion,
+      })
+    ) {
+      return;
+    }
+
+    return scheduleAnnouncementAdvance(() => {
+      setAnnouncementIndex((index) => nextAnnouncementIndex(index, announcements.length));
+    });
+  }, [isAnnouncementInteracting, isAnnouncementPaused, prefersReducedMotion, rotationVersion]);
+
+  const resetAnnouncementTimer = () => setRotationVersion((version) => version + 1);
+
+  const prev = () => {
+    setAnnouncementIndex((index) => previousAnnouncementIndex(index, announcements.length));
+    resetAnnouncementTimer();
+  };
+
+  const next = () => {
+    setAnnouncementIndex((index) => nextAnnouncementIndex(index, announcements.length));
+    resetAnnouncementTimer();
+  };
+
+  const toggleAnnouncementPause = () => {
+    setIsAnnouncementPaused((paused) => !paused);
+    resetAnnouncementTimer();
+  };
+
+  const handleAnnouncementBlur = (event: FocusEvent<HTMLDivElement>) => {
+    if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) {
+      setIsAnnouncementFocusWithin(false);
+    }
+  };
 
   return (
     <div className="sticky top-0 z-40">
       {/* Announcement bar */}
-      <div className="relative flex items-center justify-center bg-neutral-700 py-2.5 text-center text-xs font-medium text-white">
+      <div
+        className="relative flex h-10 items-center justify-center bg-neutral-700 px-20 text-center text-xs font-medium text-white"
+        onMouseEnter={() => setIsAnnouncementHovered(true)}
+        onMouseLeave={() => setIsAnnouncementHovered(false)}
+        onFocusCapture={() => setIsAnnouncementFocusWithin(true)}
+        onBlurCapture={handleAnnouncementBlur}
+      >
         <button
           onClick={prev}
           aria-label="Previous announcement"
-          className="absolute left-4 text-white/70 hover:text-white transition"
+          className="absolute left-2 flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
         >
           &#8592;
         </button>
-        <span>{announcements[announcementIndex]}</span>
-        <button
-          onClick={next}
-          aria-label="Next announcement"
-          className="absolute right-4 text-white/70 hover:text-white transition"
+        <span
+          key={announcementIndex}
+          aria-live="off"
+          aria-atomic="true"
+          className="announcement-message block truncate"
         >
-          &#8594;
-        </button>
+          {announcements[announcementIndex]}
+        </span>
+        <div className="absolute right-2 flex items-center">
+          <button
+            type="button"
+            onClick={toggleAnnouncementPause}
+            aria-label={
+              prefersReducedMotion
+                ? "Automatic announcements disabled by reduced motion preference"
+                : isAnnouncementPaused
+                  ? "Resume announcements"
+                  : "Pause announcements"
+            }
+            aria-pressed={isAnnouncementPaused}
+            disabled={prefersReducedMotion}
+            className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isAnnouncementPaused ? (
+              <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor">
+                <path d="M2.5 1.5v9l7-4.5-7-4.5Z" />
+              </svg>
+            ) : (
+              <svg aria-hidden="true" className="h-3 w-3" viewBox="0 0 12 12" fill="currentColor">
+                <path d="M2.5 1.5h2.25v9H2.5zm4.75 0H9.5v9H7.25z" />
+              </svg>
+            )}
+          </button>
+          <button
+            type="button"
+            onClick={next}
+            aria-label="Next announcement"
+            className="flex h-8 w-8 items-center justify-center rounded-full text-white/70 transition hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+          >
+            &#8594;
+          </button>
+        </div>
       </div>
 
       {/* Main header */}

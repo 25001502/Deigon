@@ -43,6 +43,26 @@ a {
 	color: #17231d;
 }
 
+@keyframes announcement-message-enter {
+	from {
+		opacity: 0.55;
+	}
+
+	to {
+		opacity: 1;
+	}
+}
+
+.announcement-message {
+	animation: announcement-message-enter 240ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.announcement-message {
+		animation: none;
+	}
+}
+
 .home-hero-overlay {
 	background:
 		radial-gradient(circle at top left, rgba(182, 91, 54, 0.18), transparent 30%),

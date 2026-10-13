@@ -52,6 +52,7 @@ export type Collection = {
 export const announcements = [
   "Free Delivery On Orders Over R600",
   "Delivery In 5 to 10 Business Days",
+  "Explore The DEIGON Collections",
 ];
 
 export const storeInfo = {
